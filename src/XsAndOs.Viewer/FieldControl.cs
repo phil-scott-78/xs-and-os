@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
@@ -6,20 +8,26 @@ using XsAndOs.Core;
 namespace XsAndOs.Viewer;
 
 /// <summary>
-/// Draws the field and one frame of a <see cref="SimResult"/>. The field is drawn
-/// horizontally: screen X = field Y (length), screen Y = field X (width).
+/// Replays a <see cref="SimResult"/>: interpolated player motion, ball trail,
+/// position labels, play-art overlay, and a soft follow camera.
 /// </summary>
 public sealed class FieldControl : Control
 {
     public static readonly StyledProperty<SimResult?> ResultProperty =
         AvaloniaProperty.Register<FieldControl, SimResult?>(nameof(Result));
 
-    public static readonly StyledProperty<int> CurrentFrameProperty =
-        AvaloniaProperty.Register<FieldControl, int>(nameof(CurrentFrame));
+    /// <summary>Fractional frame index; the renderer lerps between sim frames.</summary>
+    public static readonly StyledProperty<double> CurrentFrameProperty =
+        AvaloniaProperty.Register<FieldControl, double>(nameof(CurrentFrame));
 
-    /// <summary>Designed route polylines in field coordinates, for the faint overlay.</summary>
-    public static readonly StyledProperty<IReadOnlyList<IReadOnlyList<Vec2>>?> RouteOverlayProperty =
-        AvaloniaProperty.Register<FieldControl, IReadOnlyList<IReadOnlyList<Vec2>>?>(nameof(RouteOverlay));
+    public static readonly StyledProperty<PlayArtModel?> ArtProperty =
+        AvaloniaProperty.Register<FieldControl, PlayArtModel?>(nameof(Art));
+
+    public static readonly StyledProperty<IReadOnlyList<string>?> LabelsProperty =
+        AvaloniaProperty.Register<FieldControl, IReadOnlyList<string>?>(nameof(Labels));
+
+    public static readonly StyledProperty<bool> FollowCameraProperty =
+        AvaloniaProperty.Register<FieldControl, bool>(nameof(FollowCamera), defaultValue: true);
 
     public SimResult? Result
     {
@@ -27,76 +35,66 @@ public sealed class FieldControl : Control
         set => SetValue(ResultProperty, value);
     }
 
-    public int CurrentFrame
+    public double CurrentFrame
     {
         get => GetValue(CurrentFrameProperty);
         set => SetValue(CurrentFrameProperty, value);
     }
 
-    public IReadOnlyList<IReadOnlyList<Vec2>>? RouteOverlay
+    public PlayArtModel? Art
     {
-        get => GetValue(RouteOverlayProperty);
-        set => SetValue(RouteOverlayProperty, value);
+        get => GetValue(ArtProperty);
+        set => SetValue(ArtProperty, value);
+    }
+
+    public IReadOnlyList<string>? Labels
+    {
+        get => GetValue(LabelsProperty);
+        set => SetValue(LabelsProperty, value);
+    }
+
+    public bool FollowCamera
+    {
+        get => GetValue(FollowCameraProperty);
+        set => SetValue(FollowCameraProperty, value);
     }
 
     static FieldControl()
     {
-        AffectsRender<FieldControl>(ResultProperty, CurrentFrameProperty, RouteOverlayProperty);
+        AffectsRender<FieldControl>(ResultProperty, CurrentFrameProperty, ArtProperty,
+            LabelsProperty, FollowCameraProperty);
     }
 
-    private static readonly IBrush Grass = new SolidColorBrush(Color.FromRgb(28, 108, 46));
-    private static readonly IBrush EndZone = new SolidColorBrush(Color.FromRgb(18, 78, 34));
-    private static readonly IPen YardLine = new Pen(new SolidColorBrush(Color.FromArgb(150, 255, 255, 255)), 1);
-    private static readonly IPen FiveYardLine = new Pen(new SolidColorBrush(Color.FromArgb(60, 255, 255, 255)), 1);
-    private static readonly IPen LosPen = new Pen(new SolidColorBrush(Color.FromRgb(80, 160, 255)), 2);
     private static readonly IBrush OffenseBrush = Brushes.White;
     private static readonly IBrush DefenseBrush = new SolidColorBrush(Color.FromRgb(220, 60, 50));
     private static readonly IPen PlayerOutline = new Pen(Brushes.Black, 1);
     private static readonly IPen CarrierRing = new Pen(Brushes.Gold, 2);
     private static readonly IBrush BallBrush = new SolidColorBrush(Color.FromRgb(130, 70, 20));
-    private static readonly IPen RoutePen = new Pen(new SolidColorBrush(Color.FromArgb(110, 255, 255, 0)), 1.5);
+    private static readonly IBrush OffenseLabelBrush = Brushes.Black;
+    private static readonly IBrush DefenseLabelBrush = Brushes.White;
+
+    // --- Camera state (smoothed between renders) ---
+    private readonly Stopwatch _clock = Stopwatch.StartNew();
+    private double _lastRenderSeconds;
+    private Vec2 _camCenter = new(Field.CenterX, Field.Length / 2f);
+    private double _camZoom = 1.0;
+    private SimResult? _lastResult;
+    private double _lastFrame;
+
+    private const double FollowZoom = 2.1;
+    private const int TrailFrames = 45;
+    private const int TrailStep = 3;
 
     public override void Render(DrawingContext context)
     {
-        var bounds = Bounds;
-
-        // Letterbox the 120 x 53.33 yd field into the control.
-        var scale = Math.Min(bounds.Width / Field.Length, bounds.Height / Field.Width);
-        var w = Field.Length * scale;
-        var h = Field.Width * scale;
-        var ox = (bounds.Width - w) / 2;
-        var oy = (bounds.Height - h) / 2;
-
-        Point Map(Vec2 fieldPos) => new(ox + fieldPos.Y * scale, oy + (Field.Width - fieldPos.X) * scale);
-
-        context.FillRectangle(Grass, new Rect(ox, oy, w, h));
-        context.FillRectangle(EndZone, new Rect(ox, oy, Field.OwnGoalLineY * scale, h));
-        context.FillRectangle(EndZone,
-            new Rect(ox + Field.TargetGoalLineY * scale, oy, (Field.Length - Field.TargetGoalLineY) * scale, h));
-
-        for (var yard = 10; yard <= 110; yard += 5)
-        {
-            var pen = yard % 10 == 0 ? YardLine : FiveYardLine;
-            var x = ox + yard * scale;
-            context.DrawLine(pen, new Point(x, oy), new Point(x, oy + h));
-        }
-
         var result = Result;
-        if (result != null)
-        {
-            var losX = ox + result.LosY * scale;
-            context.DrawLine(LosPen, new Point(losX, oy), new Point(losX, oy + h));
-        }
+        var geometry = ComputeCamera(result);
 
-        if (RouteOverlay is { } routes)
+        FieldSurface.Draw(context, geometry, result?.LosY);
+
+        if (Art is { } art)
         {
-            foreach (var route in routes)
-            {
-                for (var i = 1; i < route.Count; i++)
-                {
-                    context.DrawLine(RoutePen, Map(route[i - 1]), Map(route[i]));
-                }
-            }
+            PlayArtRenderer.Draw(context, geometry, art, opacity: 0.35);
         }
 
         if (result == null || result.Frames.Count == 0)
@@ -104,22 +102,115 @@ public sealed class FieldControl : Control
             return;
         }
 
-        var frame = result.Frames[Math.Clamp(CurrentFrame, 0, result.Frames.Count - 1)];
-        var radius = Math.Max(3.0, 0.55 * scale);
+        var frame = CurrentFrame;
+        var i = Math.Clamp((int)frame, 0, result.Frames.Count - 1);
+        var next = Math.Min(i + 1, result.Frames.Count - 1);
+        var t = (float)Math.Clamp(frame - i, 0, 1);
+        var a = result.Frames[i];
+        var b = result.Frames[next];
 
-        for (var i = 0; i < frame.Players.Length; i++)
+        DrawTrail(context, geometry, result, i);
+
+        var radius = Math.Max(3.0, 0.55 * geometry.Scale);
+        var labels = Labels;
+        for (var p = 0; p < a.Players.Length; p++)
         {
-            var pos = Map(frame.Players[i].Pos);
-            var brush = i < 11 ? OffenseBrush : DefenseBrush;
-            context.DrawEllipse(brush, PlayerOutline, pos, radius, radius);
-            if (i == frame.Ball.CarrierIndex)
+            var pos = Vec2.Lerp(a.Players[p].Pos, b.Players[p].Pos, t);
+            var screen = geometry.ToScreen(pos);
+            var isOffense = p < 11;
+            context.DrawEllipse(isOffense ? OffenseBrush : DefenseBrush, PlayerOutline,
+                screen, radius, radius);
+
+            if (p == a.Ball.CarrierIndex)
             {
-                context.DrawEllipse(null, CarrierRing, pos, radius + 2, radius + 2);
+                context.DrawEllipse(null, CarrierRing, screen, radius + 2, radius + 2);
+            }
+
+            if (radius >= 7 && labels != null && p < labels.Count)
+            {
+                DrawLabel(context, labels[p], screen, radius,
+                    isOffense ? OffenseLabelBrush : DefenseLabelBrush);
             }
         }
 
-        var ballPos = Map(frame.Ball.Pos);
-        var ballR = Math.Max(2.0, 0.3 * scale);
-        context.DrawEllipse(BallBrush, PlayerOutline, ballPos, ballR, ballR * 0.7);
+        var ballPos = Vec2.Lerp(a.Ball.Pos, b.Ball.Pos, t);
+        var ballScreen = geometry.ToScreen(ballPos);
+        var ballR = Math.Max(2.0, 0.3 * geometry.Scale);
+        context.DrawEllipse(BallBrush, PlayerOutline, ballScreen, ballR, ballR * 0.7);
+    }
+
+    private FieldGeometry ComputeCamera(SimResult? result)
+    {
+        var now = _clock.Elapsed.TotalSeconds;
+        var dt = Math.Clamp(now - _lastRenderSeconds, 0.0, 0.1);
+        _lastRenderSeconds = now;
+
+        var follow = FollowCamera && result is { Frames.Count: > 0 };
+        var targetZoom = follow ? FollowZoom : 1.0;
+        var targetCenter = new Vec2(Field.CenterX, Field.Length / 2f);
+        if (follow)
+        {
+            var idx = Math.Clamp((int)CurrentFrame, 0, result!.Frames.Count - 1);
+            targetCenter = result.Frames[idx].Ball.Pos;
+        }
+
+        // Snap instead of glide on a new sim or a timeline jump (seek/scrub).
+        var jumped = !ReferenceEquals(result, _lastResult)
+            || Math.Abs(CurrentFrame - _lastFrame) > Tuning.TicksPerSecond * 1.5;
+        _lastResult = result;
+        _lastFrame = CurrentFrame;
+
+        if (jumped)
+        {
+            _camCenter = targetCenter;
+            _camZoom = targetZoom;
+        }
+        else
+        {
+            var alpha = (float)(1 - Math.Exp(-3.0 * dt));
+            _camCenter = Vec2.Lerp(_camCenter, targetCenter, alpha);
+            _camZoom += (targetZoom - _camZoom) * alpha;
+        }
+
+        return new FieldGeometry(Bounds, _camCenter, _camZoom);
+    }
+
+    /// <summary>Fading breadcrumb of recent ball positions — trails the carrier or the flight.</summary>
+    private void DrawTrail(DrawingContext context, FieldGeometry g, SimResult result, int frameIdx)
+    {
+        for (var back = TrailFrames; back > 0; back -= TrailStep)
+        {
+            var j = frameIdx - back;
+            if (j < 0)
+            {
+                continue;
+            }
+
+            var ball = result.Frames[j].Ball;
+            if (ball.State == BallStateKind.Dead)
+            {
+                continue;
+            }
+
+            var alpha = (byte)(110 * (1.0 - back / (double)TrailFrames));
+            var brush = new SolidColorBrush(Color.FromArgb(alpha, 255, 215, 90));
+            var r = Math.Max(1.5, 0.16 * g.Scale);
+            context.DrawEllipse(brush, null, g.ToScreen(ball.Pos), r, r);
+        }
+    }
+
+    private readonly Dictionary<(string Label, int SizeBucket), FormattedText> _labelCache = [];
+
+    private void DrawLabel(DrawingContext context, string label, Point center, double radius, IBrush brush)
+    {
+        var bucket = (int)(radius / 2) * 2;
+        if (!_labelCache.TryGetValue((label, bucket), out var text))
+        {
+            text = new FormattedText(label, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+                new Typeface("Inter", weight: FontWeight.SemiBold), Math.Max(7.0, bucket * 0.75), brush);
+            _labelCache[(label, bucket)] = text;
+        }
+
+        context.DrawText(text, new Point(center.X - text.Width / 2, center.Y - text.Height / 2));
     }
 }

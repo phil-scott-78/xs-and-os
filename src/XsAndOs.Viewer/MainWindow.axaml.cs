@@ -11,6 +11,8 @@ public partial class MainWindow : Window
 {
     private readonly List<PlayDesign> _plays = [];
     private readonly DispatcherTimer _timer;
+    private readonly System.Diagnostics.Stopwatch _playClock = System.Diagnostics.Stopwatch.StartNew();
+    private double _lastAdvanceSeconds;
     private SimResult? _sim;
     private double _frame;
     private bool _playing;
@@ -34,9 +36,13 @@ public partial class MainWindow : Window
         SpeedBox.ItemsSource = Speeds.Select(s => s.Label).ToList();
         SpeedBox.SelectedIndex = 2;
 
-        // 60 fps playback stepping through 60 Hz sim frames: one frame per tick at 1x.
+        // Wall-clock-driven playback over the 60 Hz sim frames: smooth at any speed
+        // and immune to timer jitter.
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16.6) };
         _timer.Tick += (_, _) => Advance();
+
+        FollowCamBox.IsCheckedChanged += (_, _) =>
+            FieldView.FollowCamera = FollowCamBox.IsChecked == true;
     }
 
     private void LoadPlays()
@@ -106,7 +112,8 @@ public partial class MainWindow : Window
 
         _sim = Sim.Run(play, defense, seed);
         FieldView.Result = _sim;
-        FieldView.RouteOverlay = BuildRouteOverlay(play, _sim.LosY);
+        FieldView.Art = PlayArtRenderer.BuildFromDesign(play, _sim.LosY);
+        FieldView.Labels = _sim.Participants.Select(ShortLabel).ToList();
 
         var r = _sim.Result;
         ResultText.Text = $"{r.Outcome}: {r.YardsGained:+0.0;-0.0;0.0} yards in {r.Duration:0.00}s";
@@ -144,48 +151,22 @@ public partial class MainWindow : Window
         };
     }
 
-    /// <summary>World-space polylines of the designed routes and run lane.</summary>
-    private static List<IReadOnlyList<Vec2>> BuildRouteOverlay(PlayDesign play, float losY)
+    /// <summary>Short on-dot label per roster id ("WR1" → "W1").</summary>
+    private static string ShortLabel(PlayerInfo p) => p.Id switch
     {
-        var formation = Formations.ByName(play.FormationName);
-        var snap = new Vec2(Field.CenterX, losY);
-        var overlay = new List<IReadOnlyList<Vec2>>();
-
-        Vec2? SlotPos(string slotId)
-        {
-            foreach (var slot in formation.Slots)
-            {
-                if (slot.SlotId == slotId)
-                {
-                    return snap + slot.Offset;
-                }
-            }
-
-            return null;
-        }
-
-        foreach (var route in play.Routes)
-        {
-            if (SlotPos(route.SlotId) is not { } origin)
-            {
-                continue;
-            }
-
-            var points = new List<Vec2> { origin };
-            points.AddRange(route.Waypoints.Select(w => origin + w));
-            overlay.Add(points);
-        }
-
-        if (play.RunLane is { Count: > 0 } lane && play.BallCarrierSlotId != null
-            && SlotPos(play.BallCarrierSlotId) is { } carrierOrigin)
-        {
-            var points = new List<Vec2> { carrierOrigin };
-            points.AddRange(lane.Select(w => carrierOrigin + w));
-            overlay.Add(points);
-        }
-
-        return overlay;
-    }
+        "QB1" => "QB",
+        "RB1" => "RB",
+        "TE1" => "TE",
+        "WR1" or "WR2" or "WR3" => "W" + p.Id[^1],
+        "DE1" => "E1",
+        "DE2" => "E2",
+        "DT1" => "T1",
+        "DT2" => "T2",
+        "LB1" => "M",
+        "LB2" or "LB3" => "L" + p.Id[^1],
+        "CB1" or "CB2" or "CB3" => "C" + p.Id[^1],
+        _ => p.Id.Length <= 2 ? p.Id : p.Id[..2],
+    };
 
     private void Advance()
     {
@@ -194,8 +175,12 @@ public partial class MainWindow : Window
             return;
         }
 
+        var now = _playClock.Elapsed.TotalSeconds;
+        var dt = Math.Clamp(now - _lastAdvanceSeconds, 0.0, 0.1);
+        _lastAdvanceSeconds = now;
+
         var speed = Speeds[Math.Max(0, SpeedBox.SelectedIndex)].Factor;
-        var next = _frame + speed;
+        var next = _frame + speed * Tuning.TicksPerSecond * dt;
         if (next >= _sim.Frames.Count - 1)
         {
             next = _sim.Frames.Count - 1;
@@ -209,7 +194,7 @@ public partial class MainWindow : Window
     {
         _frame = frame;
         var idx = (int)frame;
-        FieldView.CurrentFrame = idx;
+        FieldView.CurrentFrame = frame;
 
         _seeking = true;
         TimeSlider.Value = frame;
@@ -227,6 +212,7 @@ public partial class MainWindow : Window
         PlayPauseButton.Content = playing ? "Pause" : "Play";
         if (playing)
         {
+            _lastAdvanceSeconds = _playClock.Elapsed.TotalSeconds;
             _timer.Start();
         }
         else
