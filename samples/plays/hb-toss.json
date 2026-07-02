@@ -1,6 +1,6 @@
 {
   "name": "hb-toss",
-  "formationName": "Trips",
+  "formationName": "Ace",
   "kind": "run",
   "routes": [
     {
@@ -9,15 +9,6 @@
         [
           0,
           10
-        ]
-      ]
-    },
-    {
-      "slotId": "WR3",
-      "waypoints": [
-        [
-          0,
-          8
         ]
       ]
     }
@@ -50,23 +41,27 @@
     {
       "slotId": "WR1",
       "type": "runBlockZoneLeft"
+    },
+    {
+      "slotId": "WR3",
+      "type": "runBlockZoneLeft"
     }
   ],
   "ballCarrierSlotId": "RB1",
   "runLane": [
     [
-      -9,
-      0
+      -7,
+      -1
     ],
     [
-      -13,
-      6
+      -12,
+      4
     ],
     [
       -14,
-      26
+      24
     ]
   ],
   "dropbackDepth": 0,
-  "handoffTime": 0.55
+  "handoffTime": 0.5
 }

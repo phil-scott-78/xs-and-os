@@ -77,15 +77,14 @@ public static class SamplePlays
         RunLane: [new Vec2(1.5f, 8f), new Vec2(2f, 26f)],
         HandoffTime: 0.9f);
 
-    /// <summary>Toss sweep left, away from trips, with the right guard pulling.</summary>
+    /// <summary>Toss sweep left behind a pulling guard, with both left receivers blocking.</summary>
     public static readonly PlayDesign HbToss = new(
         Name: "hb-toss",
-        FormationName: "Trips",
+        FormationName: "Ace",
         Kind: PlayKind.Run,
         Routes:
         [
             new RouteAssignment("WR2", [new Vec2(0f, 10f)]),
-            new RouteAssignment("WR3", [new Vec2(0f, 8f)]),
         ],
         Blocking:
         [
@@ -96,10 +95,11 @@ public static class SamplePlays
             new BlockingAssignment("RT", BlockType.RunBlockZoneLeft),
             new BlockingAssignment("TE1", BlockType.RunBlockZoneLeft),
             new BlockingAssignment("WR1", BlockType.RunBlockZoneLeft),
+            new BlockingAssignment("WR3", BlockType.RunBlockZoneLeft),
         ],
         BallCarrierSlotId: "RB1",
-        RunLane: [new Vec2(-9f, 0f), new Vec2(-13f, 6f), new Vec2(-14f, 26f)],
-        HandoffTime: 0.55f);
+        RunLane: [new Vec2(-7f, -1f), new Vec2(-12f, 4f), new Vec2(-14f, 24f)],
+        HandoffTime: 0.5f);
 
     public static readonly IReadOnlyList<PlayDesign> All = [SlantFlat, FourVerts, InsideZone, HbToss];
 

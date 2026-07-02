@@ -26,6 +26,9 @@ public static class Tuning
     /// <summary>Turn angle (degrees) above which the agility speed penalty applies.</summary>
     public const float SharpTurnAngleDeg = 45f;
 
+    /// <summary>Deceleration/redirection is quicker than acceleration.</summary>
+    public const float BrakeAccelFactor = 1.8f;
+
     /// <summary>Route runners continue along their final segment at this speed fraction.</summary>
     public const float RouteExtensionSpeedFactor = 0.85f;
 
@@ -39,10 +42,20 @@ public static class Tuning
     /// <summary>Openness (yd of separation at the anticipated catch point) needed to pull the trigger.</summary>
     public const float BaseOpennessThreshold = 3.0f;
 
-    /// <summary>Threshold decay per second after the first full progression.</summary>
-    public const float OpennessThresholdDecayPerSecond = 0.8f;
+    /// <summary>No throw before this many seconds after the snap, however open someone looks.</summary>
+    public const float MinRouteDevelopmentSeconds = 0.7f;
 
-    public const float MinOpennessThreshold = 1.1f;
+    /// <summary>A read becomes throwable when the arrival point is within this route distance of the end (yd).</summary>
+    public const float RouteReadyWindow = 6f;
+
+    /// <summary>Threshold decay per second after the first full progression.</summary>
+    public const float OpennessThresholdDecayPerSecond = 0.5f;
+
+    /// <summary>
+    /// The floor the threshold decays to: smart QBs accept a tight-window throw
+    /// rather than eat the sack; low-awareness QBs hold the ball.
+    /// </summary>
+    public static float MinOpennessThreshold(int awareness) => 1.2f + 1.5f * (1f - awareness / 100f);
 
     /// <summary>Free rusher within this range makes the QB speed up his decision.</summary>
     public const float PressureRadius = 4.0f;
@@ -59,7 +72,7 @@ public static class Tuning
     /// <summary>Standard deviation (yd) of the throw landing error.</summary>
     public static float ThrowErrorStdev(int throwAccuracy, float distance, bool pressured)
     {
-        var baseError = 0.4f + distance / 25f;
+        var baseError = 0.4f + distance / 12f;
         var accuracyFactor = 1.6f - 1.2f * throwAccuracy / 100f;
         var pressureFactor = pressured ? 1.6f : 1f;
         return baseError * accuracyFactor * pressureFactor;
@@ -83,7 +96,7 @@ public static class Tuning
 
     /// <summary>P(shed) per check; average matchup holds ~3.5-5s, a big mismatch ~1.5-2s.</summary>
     public static float ShedChance(float rushScore, float blockScore) =>
-        global::System.Math.Clamp(0.04f + 0.005f * (rushScore - blockScore), 0.01f, 0.35f);
+        global::System.Math.Clamp(0.10f + 0.012f * (rushScore - blockScore), 0.02f, 0.45f);
 
     /// <summary>Seconds a blocker is stunned after being shed.</summary>
     public const float BlockerRecoverySeconds = 0.4f;
@@ -95,8 +108,11 @@ public static class Tuning
     /// <summary>Heading change (degrees) that counts as a route break.</summary>
     public const float RouteBreakAngleDeg = 40f;
 
-    /// <summary>Trail distance (yd) a man defender aims behind the receiver.</summary>
+    /// <summary>Cushion (yd) a man defender keeps on the end-zone side of the receiver.</summary>
     public const float ManTrailDistance = 0.8f;
+
+    /// <summary>How aggressively a man defender corrects toward his leverage point (1/s).</summary>
+    public const float MirrorCorrectionGain = 1.5f;
 
     /// <summary>Underneath zone radius (yd) inside which a zone defender shades a route.</summary>
     public const float UnderneathZoneRadius = 6f;
@@ -106,28 +122,43 @@ public static class Tuning
 
     // --- Catch / interception ---
     /// <summary>Players inside this range of the landing point contest the ball (yd).</summary>
-    public const float CatchContestRadius = 1.5f;
+    public const float CatchContestRadius = 2.0f;
 
     public static float CatchScore(PlayerAttributes a, bool isDefender, float distanceToBall, SimRandom rng)
     {
         var catching = isDefender ? 0.6f * a.Catching : a.Catching;
-        return catching + rng.NextGaussian(0f, 12f) - 6f * distanceToBall;
+        return catching + rng.NextGaussian(0f, 12f) - 4f * distanceToBall;
     }
 
     /// <summary>Margin by which a defender must win the contest to intercept (else it's a breakup).</summary>
     public const float InterceptionMargin = 15f;
 
+    /// <summary>Minimum contest score to secure the ball at all; below this it's a drop/breakup.</summary>
+    public const float CatchThreshold = 50f;
+
+    /// <summary>Velocity retained through the act of catching (gather + secure).</summary>
+    public const float CatchGatherSpeedFactor = 0.55f;
+
+    /// <summary>A defender within this range of the ball or receiver contests the catch (yd).</summary>
+    public const float ContestRange = 2.2f;
+
+    /// <summary>Receiver catch-score penalty per yard of defender proximity inside ContestRange.</summary>
+    public const float ContestPenaltyPerYard = 15f;
+
     // --- Tackling ---
     /// <summary>A free defender attempts a tackle inside this range (yd).</summary>
-    public const float TackleRadius = 0.8f;
+    public const float TackleRadius = 1.4f;
 
     public static float TackleChance(PlayerAttributes tackler, PlayerAttributes carrier) =>
         global::System.Math.Clamp(
-            0.45f + (tackler.Tackling + 0.4f * tackler.Strength - 0.6f * carrier.Agility - 0.4f * carrier.Strength) / 150f,
-            0.15f, 0.95f);
+            0.6f + (tackler.Tackling + 0.4f * tackler.Strength - 0.6f * carrier.Agility - 0.4f * carrier.Strength) / 150f,
+            0.2f, 0.95f);
 
     /// <summary>Seconds a defender is stunned after a broken tackle.</summary>
-    public const float BrokenTackleStunSeconds = 0.7f;
+    public const float BrokenTackleStunSeconds = 0.4f;
+
+    /// <summary>Velocity the carrier keeps after running through a tackle attempt.</summary>
+    public const float BrokenTackleCarrierSpeedFactor = 0.7f;
 
     /// <summary>Seconds between tackle attempts by the same defender.</summary>
     public const float TackleRetryInterval = 0.4f;
@@ -139,4 +170,10 @@ public static class Tuning
     public const float AvoidanceConeRange = 2.5f;
     public const float AvoidanceConeHalfAngleDeg = 30f;
     public const float AvoidanceSidestep = 1.5f;
+
+    /// <summary>Seconds a carrier commits to a chosen juke side.</summary>
+    public const float AvoidanceCommitSeconds = 0.4f;
+
+    /// <summary>Carriers cut corners: waypoints count as reached from further out (yd).</summary>
+    public const float CarrierTurnAnticipation = 1.5f;
 }
