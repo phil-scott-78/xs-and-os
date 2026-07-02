@@ -9,7 +9,9 @@ namespace XsAndOs.Viewer;
 
 public partial class MainWindow : Window
 {
-    private readonly List<PlayDesign> _plays = [];
+    private const float LosY = 50f;
+
+    private readonly PlayDraft _draft = new();
     private readonly DispatcherTimer _timer;
     private readonly System.Diagnostics.Stopwatch _playClock = System.Diagnostics.Stopwatch.StartNew();
     private double _lastAdvanceSeconds;
@@ -17,7 +19,16 @@ public partial class MainWindow : Window
     private double _frame;
     private bool _playing;
     private bool _seeking;
+    private bool _suppressDraftReset;
     private readonly Random _seedRandom = new();
+
+    private enum ViewMode
+    {
+        Chalkboard,
+        Replay,
+    }
+
+    private ViewMode _mode = ViewMode.Chalkboard;
 
     private static readonly (string Label, double Factor)[] Speeds =
     [
@@ -28,13 +39,36 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
 
-        LoadPlays();
-        PlayBox.ItemsSource = _plays.Select(p => $"{p.Name} ({p.FormationName}, {p.Kind})").ToList();
-        PlayBox.SelectedIndex = 0;
+        FormationBox.ItemsSource = Formations.All.Select(f => f.Name).ToList();
         DefenseBox.ItemsSource = DefensiveCall.All.Select(c => c.ToString()).ToList();
         DefenseBox.SelectedIndex = 0;
         SpeedBox.ItemsSource = Speeds.Select(s => s.Label).ToList();
         SpeedBox.SelectedIndex = 2;
+
+        _suppressDraftReset = true;
+        FormationBox.SelectedIndex = 0;
+        _suppressDraftReset = false;
+
+        Chalkboard.Draft = _draft;
+        Chalkboard.LosY = LosY;
+        Chalkboard.DraftChanged += UpdateDraftStatus;
+        SyncTimingBox();
+
+        FormationBox.SelectionChanged += (_, _) => ResetDraft();
+        PassRadio.IsCheckedChanged += (_, _) =>
+        {
+            if (PassRadio.IsChecked == true)
+            {
+                ResetDraft();
+            }
+        };
+        RunRadio.IsCheckedChanged += (_, _) =>
+        {
+            if (RunRadio.IsChecked == true)
+            {
+                ResetDraft();
+            }
+        };
 
         // Wall-clock-driven playback over the 60 Hz sim frames: smooth at any speed
         // and immune to timer jitter.
@@ -43,50 +77,73 @@ public partial class MainWindow : Window
 
         FollowCamBox.IsCheckedChanged += (_, _) =>
             FieldView.FollowCamera = FollowCamBox.IsChecked == true;
+
+        UpdateDraftStatus();
     }
 
-    private void LoadPlays()
-    {
-        _plays.AddRange(SamplePlays.All);
+    private PlayKind SelectedKind => RunRadio.IsChecked == true ? PlayKind.Run : PlayKind.Pass;
 
-        // Any extra drawn plays dropped into samples/plays alongside the built-ins.
-        var dir = FindSamplesDir();
-        if (dir == null)
+    private string SelectedFormation =>
+        FormationBox.SelectedIndex >= 0 ? Formations.All[FormationBox.SelectedIndex].Name : "Shotgun";
+
+    private void ResetDraft()
+    {
+        if (_suppressDraftReset)
         {
             return;
         }
 
-        try
+        _draft.Reset(SelectedFormation, SelectedKind);
+        Chalkboard.CancelEditing();
+        SyncTimingBox();
+        SetMode(ViewMode.Chalkboard);
+        UpdateDraftStatus();
+    }
+
+    private void SyncTimingBox()
+    {
+        if (SelectedKind == PlayKind.Pass)
         {
-            foreach (var play in PlaybookSerializer.LoadDirectory(dir))
-            {
-                if (_plays.All(p => !string.Equals(p.Name, play.Name, StringComparison.OrdinalIgnoreCase)))
-                {
-                    _plays.Add(play);
-                }
-            }
+            TimingLabel.Text = "Dropback (yd)";
+            TimingBox.Text = _draft.DropbackDepth.ToString("0.0");
         }
-        catch
+        else
         {
-            // A malformed play file shouldn't stop the viewer from opening.
+            TimingLabel.Text = "Handoff (s)";
+            TimingBox.Text = _draft.HandoffTime.ToString("0.0");
         }
     }
 
-    private static string? FindSamplesDir()
+    private void UpdateDraftStatus()
     {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null)
+        if (_mode != ViewMode.Chalkboard)
         {
-            var candidate = Path.Combine(dir.FullName, "samples", "plays");
-            if (Directory.Exists(candidate))
-            {
-                return candidate;
-            }
-
-            dir = dir.Parent;
+            return;
         }
 
-        return null;
+        var routes = _draft.RouteOrder.Count;
+        var carrier = _draft.BallCarrierSlotId;
+        ResultText.Text = _draft.Kind == PlayKind.Pass
+            ? routes == 0 ? "Draw some routes." : $"{routes} route{(routes == 1 ? "" : "s")} drawn."
+            : carrier == null ? "Draw the ball carrier's lane." : $"Ball to {carrier}.";
+    }
+
+    private void SetMode(ViewMode mode)
+    {
+        _mode = mode;
+        var replay = mode == ViewMode.Replay;
+        Chalkboard.IsVisible = !replay;
+        FieldView.IsVisible = replay;
+        PlaybackBar.IsVisible = replay;
+        ReplayButtons.IsVisible = replay;
+        EventsHeader.IsVisible = replay;
+        EventList.IsVisible = replay;
+        HintText.IsVisible = !replay;
+        if (!replay)
+        {
+            SetPlaying(false);
+            UpdateDraftStatus();
+        }
     }
 
     private void OnRandomizeSeed(object? sender, RoutedEventArgs e)
@@ -94,23 +151,41 @@ public partial class MainWindow : Window
         SeedBox.Text = _seedRandom.Next(1, 1_000_000).ToString();
     }
 
+    private void OnNewPlay(object? sender, RoutedEventArgs e)
+    {
+        ResetDraft();
+    }
+
+    private void OnBackToChalkboard(object? sender, RoutedEventArgs e)
+    {
+        SetMode(ViewMode.Chalkboard);
+    }
+
+    private void OnRerunNewSeed(object? sender, RoutedEventArgs e)
+    {
+        OnRandomizeSeed(sender, e);
+        OnRunSim(sender, e);
+    }
+
     private void OnRunSim(object? sender, RoutedEventArgs e)
     {
-        if (PlayBox.SelectedIndex < 0 || DefenseBox.SelectedIndex < 0)
-        {
-            return;
-        }
-
         if (!int.TryParse(SeedBox.Text, out var seed))
         {
             ResultText.Text = "Seed must be an integer.";
             return;
         }
 
-        var play = _plays[PlayBox.SelectedIndex];
-        var defense = DefensiveCall.All[DefenseBox.SelectedIndex];
+        ApplyTimingBox();
+        if (_draft.Validate() is { } problem)
+        {
+            ResultText.Text = problem;
+            return;
+        }
 
-        _sim = Sim.Run(play, defense, seed);
+        var play = _draft.Compile(LosY);
+        var defense = DefensiveCall.All[Math.Max(0, DefenseBox.SelectedIndex)];
+
+        _sim = Sim.Run(play, defense, seed, LosY);
         FieldView.Result = _sim;
         FieldView.Art = PlayArtRenderer.BuildFromDesign(play, _sim.LosY);
         FieldView.Labels = _sim.Participants.Select(ShortLabel).ToList();
@@ -124,8 +199,26 @@ public partial class MainWindow : Window
             .ToList();
 
         TimeSlider.Maximum = Math.Max(1, _sim.Frames.Count - 1);
+        SetMode(ViewMode.Replay);
         SetFrame(0);
         SetPlaying(true);
+    }
+
+    private void ApplyTimingBox()
+    {
+        if (!float.TryParse(TimingBox.Text, out var value))
+        {
+            return;
+        }
+
+        if (SelectedKind == PlayKind.Pass)
+        {
+            _draft.DropbackDepth = Math.Clamp(value, 0f, 7f);
+        }
+        else
+        {
+            _draft.HandoffTime = Math.Clamp(value, 0.2f, 2f);
+        }
     }
 
     private static string Describe(SimResult sim, PlayEvent ev)

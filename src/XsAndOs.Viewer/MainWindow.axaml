@@ -2,13 +2,24 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:v="using:XsAndOs.Viewer"
         x:Class="XsAndOs.Viewer.MainWindow"
-        Title="Xs and Os — Sim Viewer"
-        Width="1200" Height="700">
+        Title="Xs and Os — Sandbox"
+        Width="1280" Height="760">
   <DockPanel>
 
-    <StackPanel DockPanel.Dock="Left" Width="270" Margin="10" Spacing="8">
-      <TextBlock Text="Play" FontWeight="Bold" />
-      <ComboBox x:Name="PlayBox" HorizontalAlignment="Stretch" />
+    <StackPanel DockPanel.Dock="Left" Width="280" Margin="10" Spacing="8">
+      <TextBlock Text="Formation" FontWeight="Bold" />
+      <ComboBox x:Name="FormationBox" HorizontalAlignment="Stretch" />
+      <StackPanel Orientation="Horizontal" Spacing="12">
+        <RadioButton x:Name="PassRadio" Content="Pass" IsChecked="True" GroupName="kind" />
+        <RadioButton x:Name="RunRadio" Content="Run" GroupName="kind" />
+      </StackPanel>
+      <StackPanel Orientation="Horizontal" Spacing="6">
+        <TextBlock x:Name="TimingLabel" Text="Dropback (yd)" VerticalAlignment="Center" Width="110" />
+        <TextBox x:Name="TimingBox" Width="70" Text="0.5" />
+      </StackPanel>
+
+      <Separator Margin="0,4" />
+
       <TextBlock Text="Defense" FontWeight="Bold" />
       <ComboBox x:Name="DefenseBox" HorizontalAlignment="Stretch" />
       <TextBlock Text="Seed" FontWeight="Bold" />
@@ -16,14 +27,26 @@
         <TextBox x:Name="SeedBox" Text="42" />
         <Button Grid.Column="1" Margin="6,0,0,0" Click="OnRandomizeSeed">🎲</Button>
       </Grid>
+
       <Button x:Name="RunButton" Click="OnRunSim" HorizontalAlignment="Stretch"
-              HorizontalContentAlignment="Center" FontWeight="Bold">Run Sim</Button>
+              HorizontalContentAlignment="Center" FontWeight="Bold">Run Play</Button>
+      <Grid ColumnDefinitions="*,*" x:Name="ReplayButtons" IsVisible="False">
+        <Button Click="OnBackToChalkboard" Margin="0,0,3,0"
+                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center">✏ Edit</Button>
+        <Button Grid.Column="1" Click="OnRerunNewSeed" Margin="3,0,0,0"
+                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center">🎲 Re-run</Button>
+      </Grid>
+      <Button x:Name="NewPlayButton" Click="OnNewPlay" HorizontalAlignment="Stretch"
+              HorizontalContentAlignment="Center">New Play</Button>
+
       <TextBlock x:Name="ResultText" TextWrapping="Wrap" FontSize="14" />
-      <TextBlock Text="Events (click to seek)" FontWeight="Bold" />
-      <ListBox x:Name="EventList" Height="260" SelectionChanged="OnEventSelected" />
+      <TextBlock x:Name="HintText" TextWrapping="Wrap" FontSize="12" Opacity="0.75"
+                 Text="Click a skill player, then click the field to draw his route. Double-click or Enter finishes; right-click steps back; Esc cancels. Draw order = QB read order. Click linemen or badges to cycle blocking. On run plays the first path drawn carries the ball." />
+      <TextBlock x:Name="EventsHeader" Text="Events (click to seek)" FontWeight="Bold" IsVisible="False" />
+      <ListBox x:Name="EventList" Height="220" SelectionChanged="OnEventSelected" IsVisible="False" />
     </StackPanel>
 
-    <DockPanel DockPanel.Dock="Bottom" Margin="10,0,10,10">
+    <DockPanel DockPanel.Dock="Bottom" Margin="10,0,10,10" x:Name="PlaybackBar" IsVisible="False">
       <Button x:Name="PlayPauseButton" DockPanel.Dock="Left" Width="80" Click="OnPlayPause">Play</Button>
       <ComboBox x:Name="SpeedBox" DockPanel.Dock="Left" Width="90" Margin="6,0,0,0" />
       <CheckBox x:Name="FollowCamBox" DockPanel.Dock="Left" Margin="10,0,0,0" IsChecked="True"
@@ -34,7 +57,10 @@
               ValueChanged="OnSliderChanged" />
     </DockPanel>
 
-    <v:FieldControl x:Name="FieldView" Margin="10" />
+    <Panel Margin="10">
+      <v:ChalkboardControl x:Name="Chalkboard" />
+      <v:FieldControl x:Name="FieldView" IsVisible="False" />
+    </Panel>
 
   </DockPanel>
 </Window>

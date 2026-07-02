@@ -9,6 +9,14 @@ assignments.
 Unity will eventually be the frontend, but the whole game lives in a plain .NET
 library that Unity (or anything else) just renders.
 
+**The sandbox is playable now**: run `dotnet run --project src/XsAndOs.Viewer`
+(on a desktop), pick a formation and pass/run, click a player, click the field to
+draw his route (double-click or Enter to finish, right-click to step back, Esc to
+cancel, drag waypoints to adjust). Click linemen or their badges to cycle blocking
+assignments. On run plays the first path drawn carries the ball. Pick a defense,
+hit **Run Play**, and watch it unfold with a follow camera, ball trail, and a
+seekable event timeline — then jump back to the chalkboard and tweak.
+
 ## Projects
 
 | Project | Target | What it is |
@@ -37,7 +45,9 @@ library that Unity (or anything else) just renders.
   man/deep-zone defenders play a velocity-mirroring control law with leverage;
   blocking is engagement + shed rolls with pocket collapse and free-run moves;
   pursuit solves true intercept geometry; catches are contested by defender
-  proximity.
+  proximity; athletic QBs escape the pocket and throw the ball away outside the
+  tackle box; lead blockers hunt the force defender; the defense checks into
+  nickel personnel against 3+ WR formations.
 
 ## Play data model
 
@@ -76,12 +86,11 @@ distributions → `dotnet test` to make sure nothing structural broke.
 
 ## Roadmap
 
-1. **Play-drawing UI** in the Avalonia viewer: click-to-place waypoints, drag
-   handles, blocking menus, progression reorder, saving playbooks (the JSON layer
-   already exists).
-2. **Defensive depth**: blitz packages, fronts (3-4/nickel/dime/goal-line),
-   pre-snap disguise; `DefensiveCall` grows non-breakingly.
-3. **Sim feel**: QB scramble and throwaway, play-action, fumbles, penalties,
-   fatigue, hot routes, better toss/sweep blocking.
+1. **Defensive depth**: blitz packages, fronts (3-4/dime/goal-line), pre-snap
+   disguise; `DefensiveCall` grows non-breakingly.
+2. **Sim feel**: play-action, hot routes vs pressure, fumbles, penalties, fatigue,
+   designed QB runs.
+3. **Sandbox depth**: progression reordering without redrawing, playbook
+   saving/loading (the JSON layer already exists), drive/downs loop for stakes.
 4. **Unity integration**: drop the `netstandard2.1` `XsAndOs.Core.dll` into Unity
    and render `SimResult` frames; then the game loop (drives, downs, opponent AI).
