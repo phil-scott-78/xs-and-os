@@ -32,6 +32,7 @@ public static class SampleRosters
         Make("LB3", "Ty Scrape", PlayerPosition.LB, spd: 75, acc: 73, agi: 71, str: 70, awr: 64, cat: 46, pow: 10, thr: 10, blk: 20, tkl: 78),
         Make("CB1", "Ace Shadow", PlayerPosition.CB, spd: 90, acc: 88, agi: 88, str: 45, awr: 72, cat: 60, pow: 10, thr: 10, blk: 15, tkl: 55),
         Make("CB2", "Deuce Latch", PlayerPosition.CB, spd: 86, acc: 85, agi: 84, str: 45, awr: 62, cat: 55, pow: 10, thr: 10, blk: 15, tkl: 55),
+        Make("CB3", "Trey Nickels", PlayerPosition.CB, spd: 84, acc: 84, agi: 83, str: 44, awr: 60, cat: 52, pow: 10, thr: 10, blk: 15, tkl: 50),
         Make("FS", "Hawk Deepwater", PlayerPosition.S, spd: 87, acc: 84, agi: 82, str: 55, awr: 80, cat: 62, pow: 10, thr: 10, blk: 15, tkl: 65),
         Make("SS", "Bo Boxx", PlayerPosition.S, spd: 82, acc: 80, agi: 78, str: 68, awr: 70, cat: 55, pow: 10, thr: 10, blk: 15, tkl: 75),
     });

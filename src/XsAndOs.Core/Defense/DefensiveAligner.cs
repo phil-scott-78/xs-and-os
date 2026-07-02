@@ -42,28 +42,77 @@ public static class DefensiveAligner
         Rush("DE2", new Vec2(3.2f, 1f)),
     ];
 
+    /// <summary>
+    /// 3+ WRs on the field brings the nickel corner in for LB3. Every current sample
+    /// formation runs 3 WRs, so nickel is effectively always on today; the base 4-3
+    /// stays reachable for future 2-WR heavy sets.
+    /// </summary>
+    private static bool IsNickel(List<FormationSlot> eligibles)
+    {
+        var wrs = 0;
+        foreach (var e in eligibles)
+        {
+            if (e.Position == PlayerPosition.WR)
+            {
+                wrs++;
+            }
+        }
+
+        return wrs >= 3;
+    }
+
+    /// <summary>The slot receiver: widest WR that isn't an outermost eligible.</summary>
+    private static FormationSlot? FindSlotWr(List<FormationSlot> eligibles)
+    {
+        FormationSlot? slot = null;
+        for (var i = 1; i < eligibles.Count - 1; i++)
+        {
+            var e = eligibles[i];
+            if (e.Position != PlayerPosition.WR)
+            {
+                continue;
+            }
+
+            if (slot == null || global::System.Math.Abs(e.Offset.X) > global::System.Math.Abs(slot.Offset.X))
+            {
+                slot = e;
+            }
+        }
+
+        return slot;
+    }
+
     private static IReadOnlyList<DefensiveAssignment> AlignMan(List<FormationSlot> eligibles)
     {
         var result = new List<DefensiveAssignment>(FourManRush());
 
-        // CBs take the widest receiver on each side; leftover eligibles go to SS/LB2/LB3
-        // by proximity; LB1 spies a middle hook; FS is the deep free player.
+        // CBs take the widest receiver on each side; in nickel the slot corner takes
+        // the slot WR; leftover eligibles go to LB2/SS (and LB3 in base personnel);
+        // LB1 spies a middle hook; FS is the deep free player.
         var leftMost = eligibles[0];
         var rightMost = eligibles[^1];
         result.Add(ManOn("CB1", leftMost));
         result.Add(ManOn("CB2", rightMost));
 
+        var slotWr = IsNickel(eligibles) ? FindSlotWr(eligibles) : null;
+        if (slotWr != null)
+        {
+            result.Add(ManOn("CB3", slotWr));
+        }
+
         var remaining = new List<FormationSlot>();
         foreach (var e in eligibles)
         {
-            if (e != leftMost && e != rightMost)
+            if (e != leftMost && e != rightMost && e != slotWr)
             {
                 remaining.Add(e);
             }
         }
 
-        // Greedy left-to-right hand-out: LB2 patrols the left, SS the strong/right middle, LB3 the right.
-        var coverers = new Queue<string>(new[] { "LB2", "SS", "LB3" });
+        // Greedy left-to-right hand-out; LB3 only plays in base personnel.
+        var coverers = new Queue<string>(slotWr != null
+            ? ["LB2", "SS"]
+            : ["LB2", "SS", "LB3"]);
         foreach (var slot in remaining)
         {
             if (coverers.Count == 0)
@@ -97,8 +146,14 @@ public static class DefensiveAligner
             Zone("SS", new Vec2(13.3f, 13f), new Vec2(13.3f, 14f), 13.5f, isDeep: true),
             Zone("LB2", new Vec2(-3.5f, 4.5f), new Vec2(-9f, 6f), 6.5f),
             Zone("LB1", new Vec2(0f, 4.5f), new Vec2(0f, 7f), 6.5f),
-            Zone("LB3", new Vec2(3.5f, 4.5f), new Vec2(9f, 6f), 6.5f),
         };
+
+        // Nickel: the slot corner plays the curl/flat apex over the slot receiver
+        // where LB3's hook used to be.
+        var slotWr = IsNickel(eligibles) ? FindSlotWr(eligibles) : null;
+        result.Add(slotWr != null
+            ? Zone("CB3", new Vec2(slotWr.Offset.X, 5f), new Vec2(slotWr.Offset.X * 0.8f, 6f), 6.5f)
+            : Zone("LB3", new Vec2(3.5f, 4.5f), new Vec2(9f, 6f), 6.5f));
         return result;
     }
 
@@ -114,8 +169,15 @@ public static class DefensiveAligner
             Zone("SS", new Vec2(8f, 8f), new Vec2(16f, 5.5f), 7f),
             Zone("LB2", new Vec2(-3.5f, 4.5f), new Vec2(-16f, 5.5f), 7f),
             Zone("LB1", new Vec2(-1f, 4.5f), new Vec2(-5f, 6f), 6f),
-            Zone("LB3", new Vec2(3.5f, 4.5f), new Vec2(5f, 6f), 6f),
         };
+
+        // Nickel: the slot corner walks out over the slot and takes LB3's hook,
+        // shaded toward the receiver he's apexing.
+        var slotWr = IsNickel(eligibles) ? FindSlotWr(eligibles) : null;
+        result.Add(slotWr != null
+            ? Zone("CB3", new Vec2(slotWr.Offset.X, 5f),
+                new Vec2(global::System.Math.Clamp(slotWr.Offset.X * 0.7f, -10f, 10f), 6f), 6f)
+            : Zone("LB3", new Vec2(3.5f, 4.5f), new Vec2(5f, 6f), 6f));
         return result;
     }
 
