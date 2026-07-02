@@ -66,6 +66,16 @@ internal sealed class SimContext
     public float ReadNoise;
     public bool ReadNoiseSampled;
 
+    // --- Scramble drill ---
+    public bool QbEscaping;
+    public float QbEscapeSide;
+    public bool QbEscapeRolled;
+    public bool ThrowawayRolled;
+    public float ScrambleStartTime;
+
+    /// <summary>Ball in the air with no intended receiver — resolves as an incompletion.</summary>
+    public bool ThrowawayInFlight;
+
     // --- Terminal state ---
     public PlayOutcome? Outcome;
     public Vec2 DeadSpot;
@@ -91,23 +101,32 @@ internal sealed class SimContext
         return null;
     }
 
-    /// <summary>Distance from the nearest free (unengaged, unstunned) pass rusher to the QB.</summary>
-    public float NearestFreeRusherDistance()
+    /// <summary>The nearest free (unengaged, unstunned) pass rusher, or null.</summary>
+    public SimPlayer? NearestFreeRusher()
     {
-        var best = float.MaxValue;
+        SimPlayer? best = null;
+        var bestDist = float.MaxValue;
         foreach (var p in Players)
         {
             if (!p.IsOffense && p.Job == Job.Rusher && p.EngagedWith < 0 && p.StunTimer <= 0f)
             {
                 var d = Vec2.Distance(p.Pos, Qb.Pos);
-                if (d < best)
+                if (d < bestDist)
                 {
-                    best = d;
+                    best = p;
+                    bestDist = d;
                 }
             }
         }
 
         return best;
+    }
+
+    /// <summary>Distance from the nearest free pass rusher to the QB.</summary>
+    public float NearestFreeRusherDistance()
+    {
+        var rusher = NearestFreeRusher();
+        return rusher == null ? float.MaxValue : Vec2.Distance(rusher.Pos, Qb.Pos);
     }
 
     public void SetDead(PlayOutcome outcome, Vec2 spot)

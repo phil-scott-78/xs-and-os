@@ -349,6 +349,15 @@ internal static class SimEngine
         var ball = ctx.Ball;
         var landing = ball.FlightTarget;
 
+        // A throwaway has no intended receiver: it just dies over the sideline.
+        if (ctx.ThrowawayInFlight)
+        {
+            ball.InAir = false;
+            ctx.Emit(PlayEventType.Incomplete, spot: landing);
+            ctx.SetDead(PlayOutcome.IncompletePass, Field.ClampToField(landing));
+            return;
+        }
+
         var bestOffense = float.MinValue;
         var bestDefense = float.MinValue;
         SimPlayer? bestReceiver = null;
@@ -481,6 +490,14 @@ internal static class SimEngine
 
         var carrier = ctx.Players[carrierIdx];
         var carrierIsQb = carrier == ctx.Qb;
+
+        // A scrambling QB who reaches the sideline steps out for a loss.
+        if (carrierIsQb && Field.IsOutOfBoundsX(carrier.Pos.X))
+        {
+            ctx.Emit(PlayEventType.OutOfBounds, carrier.Index, spot: carrier.Pos);
+            ctx.SetDead(PlayOutcome.OutOfBounds, Field.ClampToField(carrier.Pos));
+            return;
+        }
 
         if (!carrierIsQb)
         {

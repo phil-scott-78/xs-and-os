@@ -79,9 +79,91 @@ internal static class OffenseBehaviors
             return;
         }
 
-        // Settled: scan the progression.
+        // Settled: scan the progression (standing, or on the move once escaping).
+        // While actually making the escape move his eyes are down — no reads.
         p.DesiredSpeed = 0f;
-        Scan(ctx, p);
+        var eyesDown = ctx.QbEscaping
+            && ctx.Time - ctx.ScrambleStartTime < Tuning.ScrambleEyesDownSeconds;
+        if (!eyesDown)
+        {
+            Scan(ctx, p);
+        }
+
+        if (ctx.Phase != SimPhase.Dropback || p.Job != Job.QbPass)
+        {
+            return; // the ball is out
+        }
+
+        ConsiderEscape(ctx, p);
+
+        if (ctx.QbEscaping)
+        {
+            p.DesiredTarget = p.Pos + new Vec2(ctx.QbEscapeSide * 4f, -0.5f);
+            p.DesiredSpeed = p.MaxSpeed * Tuning.ScrambleSpeedFactor;
+            ConsiderThrowaway(ctx, p);
+        }
+    }
+
+    /// <summary>One-time athletic gate: feel the collapse and bail, or freeze.</summary>
+    private static void ConsiderEscape(SimContext ctx, SimPlayer qb)
+    {
+        if (ctx.QbEscaping || ctx.QbEscapeRolled || ctx.ScanSeconds < 0.8f)
+        {
+            return;
+        }
+
+        var rusher = ctx.NearestFreeRusher();
+        if (rusher == null || Vec2.Distance(rusher.Pos, qb.Pos) > Tuning.EscapeTriggerRadius)
+        {
+            return;
+        }
+
+        ctx.QbEscapeRolled = true;
+        if (!ctx.Rng.Chance(Tuning.EscapeChance(qb.Attr.Agility, qb.Attr.Speed, qb.Attr.Awareness)))
+        {
+            return;
+        }
+
+        ctx.QbEscaping = true;
+        ctx.ScrambleStartTime = ctx.Time;
+        var side = global::System.Math.Sign(qb.Pos.X - rusher.Pos.X);
+        ctx.QbEscapeSide = side == 0 ? 1f : side;
+        // Escaping IS making the first man miss — otherwise a standing start
+        // against a full-speed rusher is a guaranteed sack.
+        rusher.StunTimer = Tuning.EscapeJukeStunSeconds;
+        ctx.Emit(PlayEventType.Scramble, qb.Index, spot: qb.Pos);
+    }
+
+    /// <summary>Outside the box with nothing open, the ball goes to the third row.</summary>
+    private static void ConsiderThrowaway(SimContext ctx, SimPlayer qb)
+    {
+        if (ctx.ThrowawayRolled
+            || global::System.Math.Abs(qb.Pos.X - ctx.BallSnapPos.X) < Tuning.TackleBoxHalfWidth)
+        {
+            return;
+        }
+
+        ctx.ThrowawayRolled = true;
+        if (!ctx.Rng.Chance(Tuning.ThrowawayChance(qb.Attr.Awareness)))
+        {
+            return;
+        }
+
+        var ball = ctx.Ball;
+        ball.InAir = true;
+        ball.CarrierIndex = -1;
+        ball.FlightStart = qb.Pos;
+        // Sail it over the sideline past the LOS — deliberately NOT clamped in bounds.
+        ball.FlightTarget = new Vec2(ctx.QbEscapeSide > 0f ? Field.Width + 2f : -2f, ctx.LosY + 5f);
+        ball.FlightTime = global::System.Math.Max(
+            0.2f, Vec2.Distance(qb.Pos, ball.FlightTarget) / Tuning.BallSpeed(qb.Attr.ThrowPower));
+        ball.FlightElapsed = 0f;
+        ball.IntendedReceiverIndex = -1;
+
+        ctx.ThrowawayInFlight = true;
+        ctx.Phase = SimPhase.BallInAir;
+        qb.Job = Job.QbIdle;
+        ctx.Emit(PlayEventType.ThrowAway, qb.Index, spot: ball.FlightTarget);
     }
 
     private static void Scan(SimContext ctx, SimPlayer qb)
@@ -106,6 +188,11 @@ internal static class OffenseBehaviors
         if (pressured)
         {
             threshold *= Tuning.PressureThresholdFactor(qb.Attr.Awareness);
+        }
+
+        if (ctx.QbEscaping)
+        {
+            threshold *= Tuning.ScrambleThresholdFactor;
         }
 
         var receiver = ctx.Players[ctx.ProgressionIndices[ctx.ReadIndex]];

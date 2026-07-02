@@ -42,6 +42,8 @@ internal static class Narrator
             PlayEventType.Tackle => $"TACKLE by {Actor()} at {yards:+0.0;-0.0;0.0}",
             PlayEventType.Sack => $"SACK by {Actor()} at {yards:+0.0;-0.0;0.0}",
             PlayEventType.OutOfBounds => $"{Actor()} out of bounds at {yards:+0.0;-0.0;0.0}",
+            PlayEventType.Scramble => $"{Actor()} escapes the pocket!",
+            PlayEventType.ThrowAway => $"{Actor()} THROWS IT AWAY",
             PlayEventType.Touchdown => $"TOUCHDOWN {Actor()}!",
             PlayEventType.PlayDead => null,
             _ => null,

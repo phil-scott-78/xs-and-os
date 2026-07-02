@@ -83,33 +83,35 @@ public class StatsTests
             "a burner against a slow corner must out-produce the inverted matchup");
     }
 
+    // Max protect with only the two outside WRs releasing: against man both are
+    // blanketed by corners, no mismatch exists, and the QB's internal clock is
+    // the whole ballgame.
+    private static readonly PlayDesign DoubleGoMaxProtect = new(
+        Name: "test-double-go",
+        FormationName: "Shotgun",
+        Kind: PlayKind.Pass,
+        Routes:
+        [
+            new RouteAssignment("WR1", [new Vec2(0f, 28f)]),
+            new RouteAssignment("WR2", [new Vec2(0f, 28f)]),
+        ],
+        Blocking:
+        [
+            new BlockingAssignment("LT", BlockType.PassProtect),
+            new BlockingAssignment("LG", BlockType.PassProtect),
+            new BlockingAssignment("C", BlockType.PassProtect),
+            new BlockingAssignment("RG", BlockType.PassProtect),
+            new BlockingAssignment("RT", BlockType.PassProtect),
+            new BlockingAssignment("TE1", BlockType.PassProtect),
+            new BlockingAssignment("RB1", BlockType.PassProtect),
+            new BlockingAssignment("WR3", BlockType.PassProtect),
+        ],
+        DropbackDepth: 2f);
+
     [Fact]
     public void SmartQbTakesFewerSacks()
     {
-        // Max protect with only the two outside WRs releasing: against man both are
-        // blanketed by corners, no mismatch exists, and the QB's internal clock is
-        // the whole ballgame.
-        var doubleGo = new PlayDesign(
-            Name: "test-double-go",
-            FormationName: "Shotgun",
-            Kind: PlayKind.Pass,
-            Routes:
-            [
-                new RouteAssignment("WR1", [new Vec2(0f, 28f)]),
-                new RouteAssignment("WR2", [new Vec2(0f, 28f)]),
-            ],
-            Blocking:
-            [
-                new BlockingAssignment("LT", BlockType.PassProtect),
-                new BlockingAssignment("LG", BlockType.PassProtect),
-                new BlockingAssignment("C", BlockType.PassProtect),
-                new BlockingAssignment("RG", BlockType.PassProtect),
-                new BlockingAssignment("RT", BlockType.PassProtect),
-                new BlockingAssignment("TE1", BlockType.PassProtect),
-                new BlockingAssignment("RB1", BlockType.PassProtect),
-                new BlockingAssignment("WR3", BlockType.PassProtect),
-            ],
-            DropbackDepth: 2f);
+        var doubleGo = DoubleGoMaxProtect;
 
         var offense = SampleRosters.CreateOffense();
         var defense = SampleRosters.CreateDefense();
@@ -125,6 +127,40 @@ public class StatsTests
         Assert.True(panickySacks >= smartSacks,
             $"low-awareness QB should not take fewer sacks (smart {smartSacks:P1}, panicky {panickySacks:P1})");
         Assert.True(panickySacks > 0.0, "a low-awareness QB with nobody open must take some sacks");
+    }
+
+    [Fact]
+    public void AthleticQbEscapesAndThrowsAway_StatueQbEatsIt()
+    {
+        var offense = SampleRosters.CreateOffense();
+        var defense = SampleRosters.CreateDefense();
+
+        var athletic = WithAttributes(offense, "QB1",
+            a => a with { Agility = 90, Speed = 85, Awareness = 85 });
+        var statue = WithAttributes(offense, "QB1",
+            a => a with { Agility = 25, Speed = 25, Awareness = 30 });
+
+        // Full SimResults so we can count Scramble/ThrowAway events.
+        var athleticSims = new SimResult[150];
+        var statueSims = new SimResult[150];
+        Parallel.For(0, 150, i =>
+        {
+            athleticSims[i] = Sim.Run(DoubleGoMaxProtect, new DefensiveCall(CoverageShell.Man),
+                athletic, defense, seed: i + 1);
+            statueSims[i] = Sim.Run(DoubleGoMaxProtect, new DefensiveCall(CoverageShell.Man),
+                statue, defense, seed: i + 1);
+        });
+
+        var athleticSackRate = athleticSims.Count(s => s.Result.Outcome == PlayOutcome.Sack) / 150.0;
+        var statueSackRate = statueSims.Count(s => s.Result.Outcome == PlayOutcome.Sack) / 150.0;
+        var throwaways = athleticSims.Count(s => s.Events.Any(e => e.Type == PlayEventType.ThrowAway));
+        var scrambles = athleticSims.Count(s => s.Events.Any(e => e.Type == PlayEventType.Scramble));
+
+        Assert.True(athleticSackRate < statueSackRate,
+            $"athletic QB must take fewer sacks (athletic {athleticSackRate:P1}, statue {statueSackRate:P1})");
+        Assert.True(scrambles > 0, "an athletic QB under pressure must scramble sometimes");
+        Assert.True(throwaways > 0, "an athletic QB outside the pocket must throw some away");
+        Assert.True(statueSackRate > 0.0, "a statue QB with nobody open still eats sacks");
     }
 
     private static PlayResult[] Batch(PlayDesign play, CoverageShell shell,

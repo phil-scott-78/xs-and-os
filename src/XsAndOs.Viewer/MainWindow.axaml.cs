@@ -137,6 +137,8 @@ public partial class MainWindow : Window
             PlayEventType.Interception => $"INTERCEPTED by {Name(ev.ActorIndex)}",
             PlayEventType.Incomplete => "INCOMPLETE",
             PlayEventType.OutOfBounds => $"{Name(ev.ActorIndex)} out of bounds",
+            PlayEventType.Scramble => $"{Name(ev.ActorIndex)} escapes the pocket",
+            PlayEventType.ThrowAway => "THROWN AWAY",
             PlayEventType.Touchdown => $"TOUCHDOWN {Name(ev.ActorIndex)}",
             _ => ev.Type.ToString(),
         };

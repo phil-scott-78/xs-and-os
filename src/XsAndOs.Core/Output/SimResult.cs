@@ -75,6 +75,8 @@ public enum PlayEventType
     OutOfBounds,
     Touchdown,
     PlayDead,
+    Scramble,
+    ThrowAway,
 }
 
 public sealed class PlayEvent

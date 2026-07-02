@@ -54,6 +54,33 @@ public static class Tuning
     /// <summary>Extra separation demanded per second of ball hang time beyond half a second.</summary>
     public const float HangTimeThresholdPerSecond = 0.25f;
 
+    // --- Scramble drill ---
+    /// <summary>Free rusher inside this range makes the QB consider bailing (yd).</summary>
+    public const float EscapeTriggerRadius = 3.5f;
+
+    /// <summary>One-time chance the QB escapes the collapsing pocket instead of freezing.</summary>
+    public static float EscapeChance(int agility, int speed, int awareness) =>
+        global::System.Math.Clamp(
+            0.15f + 0.5f * (0.4f * agility + 0.3f * speed + 0.3f * awareness) / 100f, 0.1f, 0.85f);
+
+    /// <summary>Scrambling QBs move fast, but not receiver-fast — eyes are downfield.</summary>
+    public const float ScrambleSpeedFactor = 0.85f;
+
+    /// <summary>Seconds the beaten rusher needs to redirect after the QB's escape move.</summary>
+    public const float EscapeJukeStunSeconds = 0.6f;
+
+    /// <summary>Seconds after the escape move before the QB's eyes come back downfield.</summary>
+    public const float ScrambleEyesDownSeconds = 1.0f;
+
+    /// <summary>Openness threshold multiplier while scrambling — throwing on the move demands a wider window.</summary>
+    public const float ScrambleThresholdFactor = 1.15f;
+
+    /// <summary>Outside this X-distance from the snap the QB is out of the tackle box (yd).</summary>
+    public const float TackleBoxHalfWidth = 4.5f;
+
+    /// <summary>Outside the box with nobody open: smart QBs live to play the next down.</summary>
+    public static float ThrowawayChance(int awareness) => 0.25f + 0.65f * awareness / 100f;
+
     /// <summary>Threshold decay per second once the QB has seen his first read or two.</summary>
     public const float OpennessThresholdDecayPerSecond = 1.0f;
 

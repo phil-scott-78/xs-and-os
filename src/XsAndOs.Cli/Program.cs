@@ -127,13 +127,20 @@ static int DebugPressure(CliArgs opts)
     var play = ResolvePlay(opts.Play ?? throw new ArgumentException("--play is required"));
     var defense = DefensiveCall.Parse(opts.Defense ?? "man");
     var offense = SampleRosters.CreateOffense();
-    var panicky = new Team(offense.Name, offense.Players
-        .Select(p => p.Id == "QB1" ? p with { Attributes = p.Attributes with { Awareness = 30 } } : p)
+    var athletic = new Team(offense.Name, offense.Players
+        .Select(p => p.Id == "QB1"
+            ? p with { Attributes = p.Attributes with { Agility = 90, Speed = 85, Awareness = 85 } }
+            : p)
         .ToArray());
 
     for (var seed = opts.SeedStart; seed < opts.SeedStart + opts.Sims; seed++)
     {
-        var sim = Sim.Run(play, defense, panicky, SampleRosters.CreateDefense(), seed);
+        var sim = Sim.Run(play, defense, athletic, SampleRosters.CreateDefense(), seed);
+        var kinds = string.Join(",", sim.Events
+            .Where(e => e.Type is PlayEventType.Scramble or PlayEventType.ThrowAway or PlayEventType.Sack
+                or PlayEventType.ThrowStart)
+            .Select(e => $"{e.Type}@{e.Time:0.0}"));
+        Console.WriteLine($"    events: {kinds}");
         var qbIdx = Enumerable.Range(0, 11).First(i => sim.Participants[i].Id == "QB1");
         var throwEvent = sim.Events.FirstOrDefault(e => e.Type is PlayEventType.ThrowStart or PlayEventType.Sack);
         var endTick = throwEvent?.Tick ?? int.MaxValue;
