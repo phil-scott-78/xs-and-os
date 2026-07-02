@@ -1,9 +1,38 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        xmlns:v="using:XsAndOs.Viewer"
         x:Class="XsAndOs.Viewer.MainWindow"
-        Title="XsAndOs.Viewer">
-    Welcome to Avalonia!
+        Title="Xs and Os — Sim Viewer"
+        Width="1200" Height="700">
+  <DockPanel>
+
+    <StackPanel DockPanel.Dock="Left" Width="270" Margin="10" Spacing="8">
+      <TextBlock Text="Play" FontWeight="Bold" />
+      <ComboBox x:Name="PlayBox" HorizontalAlignment="Stretch" />
+      <TextBlock Text="Defense" FontWeight="Bold" />
+      <ComboBox x:Name="DefenseBox" HorizontalAlignment="Stretch" />
+      <TextBlock Text="Seed" FontWeight="Bold" />
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBox x:Name="SeedBox" Text="42" />
+        <Button Grid.Column="1" Margin="6,0,0,0" Click="OnRandomizeSeed">🎲</Button>
+      </Grid>
+      <Button x:Name="RunButton" Click="OnRunSim" HorizontalAlignment="Stretch"
+              HorizontalContentAlignment="Center" FontWeight="Bold">Run Sim</Button>
+      <TextBlock x:Name="ResultText" TextWrapping="Wrap" FontSize="14" />
+      <TextBlock Text="Events (click to seek)" FontWeight="Bold" />
+      <ListBox x:Name="EventList" Height="260" SelectionChanged="OnEventSelected" />
+    </StackPanel>
+
+    <DockPanel DockPanel.Dock="Bottom" Margin="10,0,10,10">
+      <Button x:Name="PlayPauseButton" DockPanel.Dock="Left" Width="80" Click="OnPlayPause">Play</Button>
+      <ComboBox x:Name="SpeedBox" DockPanel.Dock="Left" Width="90" Margin="6,0,0,0" />
+      <TextBlock x:Name="TimeText" DockPanel.Dock="Right" VerticalAlignment="Center"
+                 Margin="10,0,0,0" Width="90" Text="0.00s" />
+      <Slider x:Name="TimeSlider" Margin="10,0" Minimum="0" Maximum="1"
+              ValueChanged="OnSliderChanged" />
+    </DockPanel>
+
+    <v:FieldControl x:Name="FieldView" Margin="10" />
+
+  </DockPanel>
 </Window>
