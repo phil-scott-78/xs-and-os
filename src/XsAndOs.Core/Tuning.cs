@@ -48,8 +48,17 @@ public static class Tuning
     /// <summary>A read becomes throwable when the arrival point is within this route distance of the end (yd).</summary>
     public const float RouteReadyWindow = 6f;
 
-    /// <summary>Threshold decay per second after the first full progression.</summary>
-    public const float OpennessThresholdDecayPerSecond = 0.5f;
+    /// <summary>Stdev (yd) of the QB's per-read misjudgment of a receiver's separation.</summary>
+    public static float OpennessPerceptionStdev(int awareness) => 0.3f + 0.9f * (1f - awareness / 100f);
+
+    /// <summary>Extra separation demanded per second of ball hang time beyond half a second.</summary>
+    public const float HangTimeThresholdPerSecond = 0.25f;
+
+    /// <summary>Threshold decay per second once the QB has seen his first read or two.</summary>
+    public const float OpennessThresholdDecayPerSecond = 1.0f;
+
+    /// <summary>Seconds of scanning before the QB starts accepting tighter windows.</summary>
+    public const float ThresholdDecayStartSeconds = 1.2f;
 
     /// <summary>
     /// The floor the threshold decays to: smart QBs accept a tight-window throw
@@ -60,8 +69,11 @@ public static class Tuning
     /// <summary>Free rusher within this range makes the QB speed up his decision.</summary>
     public const float PressureRadius = 4.0f;
 
-    /// <summary>Threshold multiplier while under pressure.</summary>
-    public const float PressureThresholdFactor = 0.55f;
+    /// <summary>
+    /// Threshold multiplier while under pressure: a smart QB shortens his trigger and
+    /// gets the ball out; a low-awareness QB barely adjusts and eats the sack.
+    /// </summary>
+    public static float PressureThresholdFactor(int awareness) => 1f - 0.5f * awareness / 100f;
 
     /// <summary>Deep-zone defender over the top reduces effective openness by this many yards.</summary>
     public const float DeepZoneOverTopPenalty = 2.0f;
@@ -82,8 +94,8 @@ public static class Tuning
     /// <summary>Blocker and rusher engage inside this range (yd).</summary>
     public const float EngageRadius = 1.1f;
 
-    /// <summary>yd/s the engagement pair drifts toward the roll loser.</summary>
-    public const float EngagementPushSpeed = 0.35f;
+    /// <summary>yd/s the engagement pair drifts toward the roll loser — the pocket collapses.</summary>
+    public const float EngagementPushSpeed = 0.7f;
 
     /// <summary>Seconds between shed checks.</summary>
     public const float ShedCheckInterval = 0.5f;
@@ -94,12 +106,15 @@ public static class Tuning
     public static float RushScore(PlayerAttributes a, SimRandom rng) =>
         a.Strength + 0.3f * a.Agility + rng.NextGaussian(0f, 10f);
 
-    /// <summary>P(shed) per check; average matchup holds ~3.5-5s, a big mismatch ~1.5-2s.</summary>
+    /// <summary>P(shed) per check; average matchup holds ~4-6s, a clear mismatch ~2-3s.</summary>
     public static float ShedChance(float rushScore, float blockScore) =>
-        global::System.Math.Clamp(0.10f + 0.012f * (rushScore - blockScore), 0.02f, 0.45f);
+        global::System.Math.Clamp(0.06f + 0.008f * (rushScore - blockScore), 0.02f, 0.4f);
 
     /// <summary>Seconds a blocker is stunned after being shed.</summary>
     public const float BlockerRecoverySeconds = 0.4f;
+
+    /// <summary>Seconds a rusher who won his shed is past blockers and can't be re-engaged.</summary>
+    public const float ShedFreeRunSeconds = 1.2f;
 
     // --- Coverage ---
     /// <summary>Reaction delay (s) after a receiver breaks, scaled by awareness.</summary>

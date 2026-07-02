@@ -12,6 +12,7 @@ try
         "matrix" => Matrix(opts),
         "list-plays" => ListPlays(opts),
         "debug-chase" => DebugChase(opts),
+        "debug-pressure" => DebugPressure(opts),
         "export-samples" => ExportSamples(opts),
         _ => Usage(),
     };
@@ -116,6 +117,49 @@ static int DebugChase(CliArgs opts)
             .Select(t => $"{sim.Participants[t.i].Id}:{t.d:0.0}");
         Console.WriteLine($"  t={frame.Time:0.0} carrier={sim.Participants[frame.Ball.CarrierIndex].Id} " +
                           $"pos=({carrier.Pos.X:0.0},{carrier.Pos.Y:0.0}) vel={carrier.Vel.Length:0.0} nearest: {string.Join(" ", dists)}");
+    }
+
+    return 0;
+}
+
+static int DebugPressure(CliArgs opts)
+{
+    var play = ResolvePlay(opts.Play ?? throw new ArgumentException("--play is required"));
+    var defense = DefensiveCall.Parse(opts.Defense ?? "man");
+    var offense = SampleRosters.CreateOffense();
+    var panicky = new Team(offense.Name, offense.Players
+        .Select(p => p.Id == "QB1" ? p with { Attributes = p.Attributes with { Awareness = 30 } } : p)
+        .ToArray());
+
+    for (var seed = opts.SeedStart; seed < opts.SeedStart + opts.Sims; seed++)
+    {
+        var sim = Sim.Run(play, defense, panicky, SampleRosters.CreateDefense(), seed);
+        var qbIdx = Enumerable.Range(0, 11).First(i => sim.Participants[i].Id == "QB1");
+        var throwEvent = sim.Events.FirstOrDefault(e => e.Type is PlayEventType.ThrowStart or PlayEventType.Sack);
+        var endTick = throwEvent?.Tick ?? int.MaxValue;
+
+        var minDist = float.MaxValue;
+        var minWho = "";
+        var minT = 0f;
+        foreach (var frame in sim.Frames.Where(f => f.Tick <= endTick))
+        {
+            var qb = frame.Players[qbIdx].Pos;
+            for (var i = 11; i < 22; i++)
+            {
+                var d = MathF.Sqrt((frame.Players[i].Pos.X - qb.X) * (frame.Players[i].Pos.X - qb.X)
+                    + (frame.Players[i].Pos.Y - qb.Y) * (frame.Players[i].Pos.Y - qb.Y));
+                if (d < minDist)
+                {
+                    minDist = d;
+                    minWho = sim.Participants[i].Id;
+                    minT = frame.Time;
+                }
+            }
+        }
+
+        Console.WriteLine($"  seed {seed}: {throwEvent?.Type.ToString() ?? "none"} at " +
+                          $"{(throwEvent != null ? throwEvent.Time : sim.Result.Duration):0.00}s, " +
+                          $"closest defender pre-release: {minWho} {minDist:0.00}yd at {minT:0.00}s -> {sim.Result.Outcome}");
     }
 
     return 0;

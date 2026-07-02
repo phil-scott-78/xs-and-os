@@ -51,6 +51,9 @@ internal sealed class SimPlayer
     public int EngagedWith = -1;
     public float ShedCheckTimer;
 
+    /// <summary>After winning a shed, a rusher is past his man and briefly unblockable.</summary>
+    public float NoBlockTimer;
+
     // --- Man coverage ---
     public int CoverTargetIndex = -1;
     public Vec2 LastSeenTargetHeading;

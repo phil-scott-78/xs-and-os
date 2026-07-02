@@ -101,18 +101,34 @@ internal static class OffenseBehaviors
         var pressured = ctx.NearestFreeRusherDistance() < Tuning.PressureRadius;
         var threshold = global::System.Math.Max(
             Tuning.MinOpennessThreshold(qb.Attr.Awareness),
-            Tuning.BaseOpennessThreshold - Tuning.OpennessThresholdDecayPerSecond * global::System.Math.Max(0f, ctx.ScanSeconds - 1.5f));
+            Tuning.BaseOpennessThreshold - Tuning.OpennessThresholdDecayPerSecond
+                * global::System.Math.Max(0f, ctx.ScanSeconds - Tuning.ThresholdDecayStartSeconds));
         if (pressured)
         {
-            threshold *= Tuning.PressureThresholdFactor;
+            threshold *= Tuning.PressureThresholdFactor(qb.Attr.Awareness);
         }
 
         var receiver = ctx.Players[ctx.ProgressionIndices[ctx.ReadIndex]];
         var (openness, catchPoint, flightTime) = EvaluateReceiver(ctx, qb, receiver);
 
+        // QBs don't measure separation with a laser: perception error, worse for
+        // low awareness, occasionally talks them into (or out of) a window. One
+        // sample per read — per-tick resampling would let the QB take the best of
+        // sixty rolls a second.
+        if (!ctx.ReadNoiseSampled)
+        {
+            ctx.ReadNoise = ctx.Rng.NextGaussian(0f, Tuning.OpennessPerceptionStdev(qb.Attr.Awareness));
+            ctx.ReadNoiseSampled = true;
+        }
+
+        openness += ctx.ReadNoise;
+
         // A route is only throwable once the ball would meet the receiver near or
         // past his break — no dumping a deep route off at its stem.
         var ready = RemainingRouteAfter(receiver, flightTime) <= Tuning.RouteReadyWindow;
+
+        // Hang time is the defender's friend: longer flights demand a wider window.
+        threshold *= 1f + Tuning.HangTimeThresholdPerSecond * global::System.Math.Max(0f, flightTime - 0.5f);
 
         if (ready && openness > threshold)
         {
@@ -125,6 +141,7 @@ internal static class OffenseBehaviors
         {
             ctx.ReadTimer = 0f;
             ctx.ReadIndex = (ctx.ReadIndex + 1) % ctx.ProgressionIndices.Length;
+            ctx.ReadNoiseSampled = false;
             ctx.Emit(PlayEventType.ProgressionRead, qb.Index, ctx.ProgressionIndices[ctx.ReadIndex]);
         }
     }
@@ -151,7 +168,8 @@ internal static class OffenseBehaviors
                 continue;
             }
 
-            var projected = d.Pos + d.Vel * (flightTime * 0.5f);
+            // A defender in phase keeps running the whole flight.
+            var projected = d.Pos + d.Vel * flightTime;
             var sep = Vec2.Distance(projected, catchPoint);
 
             // A deep zone defender sitting over the top erases the window even at distance.

@@ -53,7 +53,7 @@ internal static class Engagements
             var bestDist = Tuning.EngageRadius;
             foreach (var d in ctx.Players)
             {
-                if (d.IsOffense || d.EngagedWith >= 0 || d.StunTimer > 0f)
+                if (d.IsOffense || d.EngagedWith >= 0 || d.StunTimer > 0f || d.NoBlockTimer > 0f)
                 {
                     continue;
                 }
@@ -105,6 +105,7 @@ internal static class Engagements
                 {
                     ctx.Emit(PlayEventType.BlockShed, rusher.Index, blocker.Index, blocker.Pos);
                     blocker.StunTimer = Tuning.BlockerRecoverySeconds;
+                    rusher.NoBlockTimer = Tuning.ShedFreeRunSeconds;
                     Release(ctx, i);
                 }
             }
@@ -116,8 +117,9 @@ internal static class Engagements
         if (blocker.BlockAssignment == BlockType.PassProtect)
         {
             var axis = (ctx.Qb.Pos - rusher.Pos).Normalized;
-            // Winner drives the pile: rusher toward the QB, blocker resets him away.
-            return blockerWinning ? -axis * (Tuning.EngagementPushSpeed * 0.5f) : axis * Tuning.EngagementPushSpeed;
+            // A pass-pro win is a stalemate (anchor, don't pancake); a loss is the
+            // pocket visibly caving toward the QB.
+            return blockerWinning ? -axis * (Tuning.EngagementPushSpeed * 0.1f) : axis * Tuning.EngagementPushSpeed;
         }
 
         if (blockerWinning)

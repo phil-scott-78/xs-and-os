@@ -62,6 +62,10 @@ internal sealed class SimContext
     public float ReadTimer;
     public float ScanSeconds;
 
+    /// <summary>Perception error for the current read; resampled per read, NOT per tick.</summary>
+    public float ReadNoise;
+    public bool ReadNoiseSampled;
+
     // --- Terminal state ---
     public PlayOutcome? Outcome;
     public Vec2 DeadSpot;

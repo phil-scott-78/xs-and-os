@@ -167,6 +167,7 @@ internal static class SimEngine
         {
             p.StunTimer = global::System.Math.Max(0f, p.StunTimer - Tuning.Dt);
             p.TackleCooldown = global::System.Math.Max(0f, p.TackleCooldown - Tuning.Dt);
+            p.NoBlockTimer = global::System.Math.Max(0f, p.NoBlockTimer - Tuning.Dt);
             if (p.ReactionTimer > 0f)
             {
                 p.ReactionTimer -= Tuning.Dt;
