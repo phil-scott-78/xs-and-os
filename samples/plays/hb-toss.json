@@ -1,0 +1,72 @@
+{
+  "name": "hb-toss",
+  "formationName": "Trips",
+  "kind": "run",
+  "routes": [
+    {
+      "slotId": "WR2",
+      "waypoints": [
+        [
+          0,
+          10
+        ]
+      ]
+    },
+    {
+      "slotId": "WR3",
+      "waypoints": [
+        [
+          0,
+          8
+        ]
+      ]
+    }
+  ],
+  "blocking": [
+    {
+      "slotId": "LT",
+      "type": "runBlockZoneLeft"
+    },
+    {
+      "slotId": "LG",
+      "type": "runBlockZoneLeft"
+    },
+    {
+      "slotId": "C",
+      "type": "runBlockZoneLeft"
+    },
+    {
+      "slotId": "RG",
+      "type": "pullLeft"
+    },
+    {
+      "slotId": "RT",
+      "type": "runBlockZoneLeft"
+    },
+    {
+      "slotId": "TE1",
+      "type": "runBlockZoneLeft"
+    },
+    {
+      "slotId": "WR1",
+      "type": "runBlockZoneLeft"
+    }
+  ],
+  "ballCarrierSlotId": "RB1",
+  "runLane": [
+    [
+      -9,
+      0
+    ],
+    [
+      -13,
+      6
+    ],
+    [
+      -14,
+      26
+    ]
+  ],
+  "dropbackDepth": 0,
+  "handoffTime": 0.55
+}

@@ -1,0 +1,73 @@
+{
+  "name": "inside-zone",
+  "formationName": "Ace",
+  "kind": "run",
+  "routes": [
+    {
+      "slotId": "WR1",
+      "waypoints": [
+        [
+          0,
+          10
+        ]
+      ]
+    },
+    {
+      "slotId": "WR2",
+      "waypoints": [
+        [
+          0,
+          10
+        ]
+      ]
+    },
+    {
+      "slotId": "WR3",
+      "waypoints": [
+        [
+          0,
+          8
+        ]
+      ]
+    }
+  ],
+  "blocking": [
+    {
+      "slotId": "LT",
+      "type": "runBlockZoneRight"
+    },
+    {
+      "slotId": "LG",
+      "type": "runBlockZoneRight"
+    },
+    {
+      "slotId": "C",
+      "type": "runBlockZoneRight"
+    },
+    {
+      "slotId": "RG",
+      "type": "runBlockZoneRight"
+    },
+    {
+      "slotId": "RT",
+      "type": "runBlockZoneRight"
+    },
+    {
+      "slotId": "TE1",
+      "type": "runBlockZoneRight"
+    }
+  ],
+  "ballCarrierSlotId": "RB1",
+  "runLane": [
+    [
+      1.5,
+      8
+    ],
+    [
+      2,
+      26
+    ]
+  ],
+  "dropbackDepth": 0,
+  "handoffTime": 0.9
+}

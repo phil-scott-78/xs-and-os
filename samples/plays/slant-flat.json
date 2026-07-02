@@ -1,0 +1,83 @@
+{
+  "name": "slant-flat",
+  "formationName": "Shotgun",
+  "kind": "pass",
+  "routes": [
+    {
+      "slotId": "WR1",
+      "waypoints": [
+        [
+          0,
+          3
+        ],
+        [
+          9,
+          9
+        ]
+      ]
+    },
+    {
+      "slotId": "RB1",
+      "waypoints": [
+        [
+          -5,
+          3
+        ],
+        [
+          -12,
+          4.5
+        ]
+      ]
+    },
+    {
+      "slotId": "WR3",
+      "waypoints": [
+        [
+          0,
+          4
+        ],
+        [
+          -5,
+          4.5
+        ]
+      ]
+    },
+    {
+      "slotId": "WR2",
+      "waypoints": [
+        [
+          0,
+          16
+        ]
+      ]
+    }
+  ],
+  "blocking": [
+    {
+      "slotId": "LT",
+      "type": "passProtect"
+    },
+    {
+      "slotId": "LG",
+      "type": "passProtect"
+    },
+    {
+      "slotId": "C",
+      "type": "passProtect"
+    },
+    {
+      "slotId": "RG",
+      "type": "passProtect"
+    },
+    {
+      "slotId": "RT",
+      "type": "passProtect"
+    },
+    {
+      "slotId": "TE1",
+      "type": "passProtect"
+    }
+  ],
+  "dropbackDepth": 0.5,
+  "handoffTime": 0
+}

@@ -1,0 +1,71 @@
+{
+  "name": "four-verts",
+  "formationName": "Shotgun",
+  "kind": "pass",
+  "routes": [
+    {
+      "slotId": "WR3",
+      "waypoints": [
+        [
+          2,
+          26
+        ]
+      ]
+    },
+    {
+      "slotId": "TE1",
+      "waypoints": [
+        [
+          -1,
+          22
+        ]
+      ]
+    },
+    {
+      "slotId": "WR1",
+      "waypoints": [
+        [
+          1,
+          28
+        ]
+      ]
+    },
+    {
+      "slotId": "WR2",
+      "waypoints": [
+        [
+          -1,
+          28
+        ]
+      ]
+    }
+  ],
+  "blocking": [
+    {
+      "slotId": "LT",
+      "type": "passProtect"
+    },
+    {
+      "slotId": "LG",
+      "type": "passProtect"
+    },
+    {
+      "slotId": "C",
+      "type": "passProtect"
+    },
+    {
+      "slotId": "RG",
+      "type": "passProtect"
+    },
+    {
+      "slotId": "RT",
+      "type": "passProtect"
+    },
+    {
+      "slotId": "RB1",
+      "type": "passProtect"
+    }
+  ],
+  "dropbackDepth": 2,
+  "handoffTime": 0
+}
