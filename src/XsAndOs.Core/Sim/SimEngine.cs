@@ -216,6 +216,15 @@ internal static class SimEngine
             ctx.Phase = SimPhase.BallCarried;
             ctx.Emit(PlayEventType.Handoff, ctx.Qb.Index, carrier.Index, carrier.Pos);
             ConvertCoverageToPursuit(ctx, delayFactor: 1.5f, run: true);
+
+            // The front reads the mesh too — free rushers pause before flowing.
+            foreach (var p in ctx.Players)
+            {
+                if (!p.IsOffense && p.Job == Job.Rusher && p.EngagedWith < 0)
+                {
+                    p.ReactionTimer = Tuning.RushRunReactSeconds(p.Attr.Awareness);
+                }
+            }
         }
     }
 
@@ -440,10 +449,19 @@ internal static class SimEngine
         {
             if (!p.IsOffense && (p.Job == Job.ManCover || p.Job == Job.ZoneCover))
             {
-                // On runs, deep safeties stay honest a beat longer before committing downhill.
-                var factor = run && p.Job == Job.ZoneCover && p.IsDeepZone ? delayFactor * 1.6f : delayFactor;
                 p.Job = Job.Pursuer;
-                p.ReactionTimer = Tuning.CoverageReactionSeconds(p.Attr.Awareness) * factor;
+                var delay = Tuning.CoverageReactionSeconds(p.Attr.Awareness) * delayFactor;
+
+                // Run recognition reaches defenders away from the mesh a beat later —
+                // capped so deep safeties still fill before the second level breaks.
+                if (run)
+                {
+                    delay += global::System.Math.Min(
+                        Tuning.MaxRunReadExtraSeconds,
+                        Vec2.Distance(p.Pos, ctx.Ball.Pos) * Tuning.RunReadSecondsPerYard);
+                }
+
+                p.ReactionTimer = delay;
             }
         }
     }

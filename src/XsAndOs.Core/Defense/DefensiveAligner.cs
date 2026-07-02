@@ -168,7 +168,9 @@ public static class DefensiveAligner
             Zone("FS", new Vec2(0f, 13f), new Vec2(0f, 13f), 8.9f, isDeep: true),
             Zone("SS", new Vec2(8f, 8f), new Vec2(16f, 5.5f), 7f),
             Zone("LB2", new Vec2(-3.5f, 4.5f), new Vec2(-16f, 5.5f), 7f),
-            Zone("LB1", new Vec2(-1f, 4.5f), new Vec2(-5f, 6f), 6f),
+            // The MIKE holds the strongside hook so the A/B gaps aren't a freeway
+            // when the nickel apexes out over the slot.
+            Zone("LB1", new Vec2(-1f, 4.5f), new Vec2(3f, 6f), 6f),
         };
 
         // Nickel: the slot corner walks out over the slot and takes LB3's hook,

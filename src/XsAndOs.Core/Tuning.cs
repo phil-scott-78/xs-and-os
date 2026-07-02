@@ -181,6 +181,27 @@ public static class Tuning
     /// <summary>Free rusher within this range of the QB triggers a sack attempt (yd).</summary>
     public const float SackRadius = 1.2f;
 
+    /// <summary>Seconds a free rusher pauses at the mesh to read run vs pass.</summary>
+    public static float RushRunReactSeconds(int awareness) => 0.3f - 0.15f * awareness / 100f;
+
+    /// <summary>
+    /// Extra run-recognition delay per yard of distance from the mesh — news of the
+    /// handoff reaches the overhang and deep defenders later than the box.
+    /// </summary>
+    public const float RunReadSecondsPerYard = 0.035f;
+
+    /// <summary>Cap on the distance term so deep safeties still play run support.</summary>
+    public const float MaxRunReadExtraSeconds = 0.3f;
+
+    /// <summary>
+    /// Speed multiplier for defenders chasing a live ball carrier — keeps equal-speed
+    /// footraces from being decided forever at the moment of the catch/handoff.
+    /// </summary>
+    public const float PursuitSpeedBonus = 1.04f;
+
+    /// <summary>Lead blockers look for the force defender within this range of the carrier (yd).</summary>
+    public const float ForceDefenderRange = 12f;
+
     // --- Ball carrier avoidance ---
     public const float AvoidanceConeRange = 2.5f;
     public const float AvoidanceConeHalfAngleDeg = 30f;

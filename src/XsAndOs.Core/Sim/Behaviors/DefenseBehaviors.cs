@@ -4,6 +4,13 @@ internal static class DefenseBehaviors
 {
     public static void Rusher(SimContext ctx, SimPlayer p)
     {
+        // Run fit: linemen need a beat to read the mesh before chasing the sweep.
+        if (p.ReactionTimer > 0f)
+        {
+            p.DesiredSpeed = 0f;
+            return;
+        }
+
         if (ctx.Ball.InAir)
         {
             // Ball's gone: peel toward the landing point to join pursuit.
@@ -14,7 +21,8 @@ internal static class DefenseBehaviors
 
         var carrierIdx = ctx.Ball.CarrierIndex;
         p.DesiredTarget = carrierIdx >= 0 ? InterceptPoint(p, ctx.Players[carrierIdx]) : ctx.Ball.Pos;
-        p.DesiredSpeed = p.MaxSpeed;
+        var chasingRunner = carrierIdx >= 0 && carrierIdx != ctx.Qb.Index;
+        p.DesiredSpeed = p.MaxSpeed * (chasingRunner ? Tuning.PursuitSpeedBonus : 1f);
     }
 
     /// <summary>
@@ -277,7 +285,9 @@ internal static class DefenseBehaviors
 
         var carrier = ctx.Players[carrierIdx];
         p.DesiredTarget = InterceptPoint(p, carrier);
-        p.DesiredSpeed = p.MaxSpeed;
+        // Chasing a live ball carrier brings out the extra gear; carriers weave and
+        // manage the ball while pursuit runs straight lines.
+        p.DesiredSpeed = p.MaxSpeed * Tuning.PursuitSpeedBonus;
     }
 
     // cos(40 degrees) — the route-break recognition threshold.

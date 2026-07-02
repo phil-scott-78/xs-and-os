@@ -313,8 +313,10 @@ internal static class OffenseBehaviors
 
     private static void ZoneBlock(SimContext ctx, SimPlayer p, Vec2 dir)
     {
+        // Receivers stalk the DB over them — a wider search than an OL's zone step.
+        var reach = p.Info.Position == PlayerPosition.WR ? 9f : 5f;
         var probe = p.Pos + dir * 2f;
-        var threat = NearestFreeDefender(ctx, probe, 5f, rushersOnly: false);
+        var threat = NearestFreeDefender(ctx, probe, reach, rushersOnly: false);
         if (threat != null)
         {
             p.DesiredTarget = LeadDefender(p, threat);
@@ -332,7 +334,15 @@ internal static class OffenseBehaviors
     {
         if (!p.PullArrived)
         {
-            var spot = ctx.BallSnapPos + new Vec2(side * 6.5f, -1.5f);
+            // Pull to where the lane actually goes, not a fixed landmark.
+            var spotX = side * 6.5f;
+            if (RunLaneApexX(ctx) is { } apexX)
+            {
+                var offset = (apexX - ctx.BallSnapPos.X) * 0.75f;
+                spotX = global::System.Math.Clamp(offset, -9f, 9f);
+            }
+
+            var spot = ctx.BallSnapPos + new Vec2(spotX, -1.5f);
             if (Vec2.Distance(p.Pos, spot) < 1f)
             {
                 p.PullArrived = true;
@@ -350,18 +360,162 @@ internal static class OffenseBehaviors
 
     private static void LeadBlock(SimContext ctx, SimPlayer p)
     {
-        var ballPos = ctx.Ball.Pos;
-        var threat = NearestFreeDefender(ctx, ballPos + new Vec2(0f, 2f), 8f, rushersOnly: false);
+        // On a run, kick out the force defender — the one who'll meet the lane
+        // first — rather than whoever happens to be nearest the ball.
+        var carrier = DesignatedCarrier(ctx);
+        var threat = carrier != null
+            ? FindForceDefender(ctx, carrier, p)
+            : NearestFreeDefender(ctx, ctx.Ball.Pos + new Vec2(0f, 2f), 8f, rushersOnly: false);
+
         if (threat != null)
         {
             p.DesiredTarget = LeadDefender(p, threat);
         }
         else
         {
-            p.DesiredTarget = ballPos + new Vec2(0f, 3f);
+            p.DesiredTarget = ctx.Ball.Pos + new Vec2(0f, 3f);
         }
 
         p.DesiredSpeed = p.MaxSpeed;
+    }
+
+    /// <summary>The run play's ball carrier (before or after the mesh), if any.</summary>
+    private static SimPlayer? DesignatedCarrier(SimContext ctx)
+    {
+        if (ctx.Play.Kind == PlayKind.Run && ctx.Play.BallCarrierSlotId != null)
+        {
+            return ctx.FindBySlot(ctx.Play.BallCarrierSlotId);
+        }
+
+        var idx = ctx.Ball.CarrierIndex;
+        return idx >= 0 && idx != ctx.Qb.Index ? ctx.Players[idx] : null;
+    }
+
+    /// <summary>World X of the lane waypoint furthest from the snap, or null for pass plays.</summary>
+    private static float? RunLaneApexX(SimContext ctx)
+    {
+        var carrier = ctx.Play.Kind == PlayKind.Run && ctx.Play.BallCarrierSlotId != null
+            ? ctx.FindBySlot(ctx.Play.BallCarrierSlotId)
+            : null;
+        if (carrier == null || carrier.RouteWaypoints.Length == 0)
+        {
+            return null;
+        }
+
+        var apexX = carrier.RouteWaypoints[0].X;
+        foreach (var wp in carrier.RouteWaypoints)
+        {
+            if (global::System.Math.Abs(wp.X - ctx.BallSnapPos.X) > global::System.Math.Abs(apexX - ctx.BallSnapPos.X))
+            {
+                apexX = wp.X;
+            }
+        }
+
+        return apexX;
+    }
+
+    /// <summary>
+    /// The defender who threatens the carrier's remaining lane soonest: minimum
+    /// distance to the lane polyline, with a strong preference for playside bodies.
+    /// A threat another lead blocker is closer to is his — take the next one, so
+    /// two lead blockers don't chase the same man.
+    /// </summary>
+    private static SimPlayer? FindForceDefender(SimContext ctx, SimPlayer carrier, SimPlayer blocker)
+    {
+        var playside = 0f;
+        if (carrier.RouteWaypoints.Length > 0)
+        {
+            playside = global::System.Math.Sign(carrier.RouteWaypoints[^1].X - ctx.BallSnapPos.X);
+        }
+
+        SimPlayer? best = null;
+        var bestScore = float.MaxValue;
+        foreach (var d in ctx.Players)
+        {
+            if (d.IsOffense || d.EngagedWith >= 0 || d.StunTimer > 0f)
+            {
+                continue;
+            }
+
+            if (Vec2.Distance(d.Pos, carrier.Pos) > Tuning.ForceDefenderRange)
+            {
+                continue;
+            }
+
+            if (ClaimedByCloserLeadBlocker(ctx, d, blocker))
+            {
+                continue;
+            }
+
+            var score = DistanceToRemainingLane(d.Pos, carrier);
+            var onPlayside = playside != 0f
+                && global::System.Math.Sign(d.Pos.X - ctx.BallSnapPos.X) == playside;
+            if (onPlayside)
+            {
+                score -= 4f;
+            }
+
+            if (score < bestScore)
+            {
+                best = d;
+                bestScore = score;
+            }
+        }
+
+        return best;
+    }
+
+    private static bool ClaimedByCloserLeadBlocker(SimContext ctx, SimPlayer defender, SimPlayer blocker)
+    {
+        var myDist = Vec2.Distance(blocker.Pos, defender.Pos);
+        foreach (var o in ctx.Players)
+        {
+            if (!o.IsOffense || o == blocker || o.Job != Job.Blocker
+                || o.EngagedWith >= 0 || o.StunTimer > 0f)
+            {
+                continue;
+            }
+
+            if (o.BlockAssignment is not (BlockType.LeadBlock or BlockType.PullLeft or BlockType.PullRight))
+            {
+                continue;
+            }
+
+            if (Vec2.Distance(o.Pos, defender.Pos) < myDist)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static float DistanceToRemainingLane(Vec2 point, SimPlayer carrier)
+    {
+        var best = Vec2.Distance(point, carrier.Pos);
+        var prev = carrier.Pos;
+        for (var i = carrier.RouteDone ? carrier.RouteWaypoints.Length : carrier.RouteWaypointIndex;
+             i < carrier.RouteWaypoints.Length;
+             i++)
+        {
+            best = global::System.Math.Min(best, DistanceToSegment(point, prev, carrier.RouteWaypoints[i]));
+            prev = carrier.RouteWaypoints[i];
+        }
+
+        return best;
+    }
+
+    private static float DistanceToSegment(Vec2 p, Vec2 a, Vec2 b)
+    {
+        var ab = b - a;
+        var lenSq = ab.LengthSquared;
+        if (lenSq < 1e-6f)
+        {
+            return Vec2.Distance(p, a);
+        }
+
+        var t = global::System.Math.Clamp(Vec2.Dot(p - a, ab) / lenSq, 0f, 1f);
+        return Vec2.Distance(p, a + ab * t);
     }
 
     private static void RunWaypoints(SimPlayer p, float waypointRadius = Tuning.WaypointRadius)

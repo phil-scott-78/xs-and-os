@@ -50,6 +50,21 @@ public class StatsTests
     }
 
     [Fact]
+    public void HbToss_IsAViableOutsideRun()
+    {
+        var vsMan = Batch(SamplePlays.HbToss, CoverageShell.Man);
+        var yards = vsMan.Select(r => r.YardsGained).OrderBy(y => y).ToArray();
+
+        Assert.InRange(yards.Average(), 1.5, 10.0);
+        Assert.True(yards[(int)(yards.Length * 0.9)] >= 4.0, "a healthy toss should have chunk-gain upside");
+        Assert.Contains(yards, y => y < 0.0);
+
+        // Sweeping into a zone's overhang defenders is worse, but not a guaranteed loss.
+        var vsCover3 = Batch(SamplePlays.HbToss, CoverageShell.Cover3);
+        Assert.InRange(vsCover3.Average(r => r.YardsGained), -1.0, 8.0);
+    }
+
+    [Fact]
     public void FastReceiverBeatsSlowCorner_AndViceVersa()
     {
         var offense = SampleRosters.CreateOffense();
